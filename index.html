@@ -215,7 +215,7 @@
     <!-- Student sign-in (default screen) -->
     <form id="studentLoginForm" autocomplete="off">
       <h2>Student Sign In</h2>
-      <p class="hint">Use your full name, student ID, and section exactly as registered.</p>
+      <p class="hint">Enter your full name, student ID, and section to sign in — no registration needed.</p>
       <div id="studentLoginError"></div>
       <div class="field">
         <label for="slName">Full Name</label>
@@ -426,11 +426,22 @@ studentForm.addEventListener("submit", function(e){
   var name=document.getElementById("slName").value.trim();
   var sid=document.getElementById("slId").value.trim();
   var sec=document.getElementById("slSection").value.trim();
+  if(!name || !sid || !sec){ loginError("studentLoginError","Please fill in your full name, student ID, and section."); return; }
+  if(!db.students) db.students=[];
   var found=null;
   db.students.forEach(function(s){
     if(s.name.toLowerCase()===name.toLowerCase() && s.studentId.toLowerCase()===sid.toLowerCase() && s.section.toLowerCase()===sec.toLowerCase()) found=s;
   });
-  if(!found){ loginError("studentLoginError","No student record matches that name, student ID, and section. Please check your details and try again."); return; }
+  if(!found){
+    db.students.forEach(function(s){
+      if(s.studentId && s.studentId.toLowerCase()===sid.toLowerCase()) found=s;
+    });
+  }
+  if(!found){
+    found={id:uid("st"), name:name, studentId:sid, section:sec};
+    db.students.push(found);
+    saveDb();
+  }
   loginError("studentLoginError","");
   session={kind:"student", id:found.id, name:found.name, studentId:found.studentId, section:found.section};
   enterApp();
