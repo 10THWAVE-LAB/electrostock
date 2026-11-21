@@ -63,8 +63,7 @@
   .login-foot{margin-top:16px;padding-top:12px;border-top:1px solid var(--line);text-align:center}
   .login-foot a{color:var(--muted);font-size:13px;text-decoration:none;padding:8px 6px;display:inline-block;min-height:2rem}
   .login-foot a:hover{color:var(--blue);text-decoration:underline}
-  .demo-box{background:var(--blue-soft);border-radius:8px;padding:10px 12px;font-size:12.5px;color:var(--navy);margin-top:14px}
-  .demo-box b{display:block;margin-bottom:2px}
+
 
   /* ---------- app shell ---------- */
   .app{display:flex;min-height:100vh}
@@ -222,18 +221,17 @@
       <div id="studentLoginError"></div>
       <div class="field">
         <label for="slName">Full Name</label>
-        <input id="slName" type="text" placeholder="e.g. Justin Bardiago" required />
+        <input id="slName" type="text" placeholder="Enter your full name" required />
       </div>
       <div class="field">
         <label for="slId">Student ID</label>
-        <input id="slId" type="text" placeholder="e.g. 2023-00001" required />
+        <input id="slId" type="text" placeholder="Enter your student ID" required />
       </div>
       <div class="field">
         <label for="slSection">Section</label>
-        <input id="slSection" type="text" placeholder="e.g. ELX-3B" required />
+        <input id="slSection" type="text" placeholder="Enter your section" required />
       </div>
       <button class="btn block" type="submit">Sign in as Student</button>
-      <div class="demo-box"><b>Demo student login</b>Justin Bardiago · ID 2023-00001 · Section ELX-3B</div>
     </form>
 
     <!-- Staff sign-in (separate screen) -->
@@ -243,10 +241,9 @@
       <div id="staffLoginError"></div>
       <div class="field">
         <label for="tlEmail">EVSU Email</label>
-        <input id="tlEmail" type="email" placeholder="e.g. justin.bardiago@evsu.edu.ph" required />
+        <input id="tlEmail" type="email" placeholder="Enter your EVSU email" required />
       </div>
       <button class="btn block" type="submit">Sign in as Lab Staff</button>
-      <div class="demo-box"><b>Demo staff login</b>justin.bardiago@evsu.edu.ph</div>
     </form>
 
     <div class="login-foot">
