@@ -296,6 +296,7 @@
    (localStorage). No network calls of any kind.
    ============================================================ */
 var LS_KEY = "electrostock_offline_v1";
+var SEED_VERSION = 2;
 var CATEGORIES = ["Tools","Testing","Hand Tools","Microcontroller","Storage","Safety"];
 
 var SEED = {
@@ -319,7 +320,8 @@ var SEED = {
     {id:"st3", name:"Maria Santos",    studentId:"2023-00003", section:"ELX-3B"},
     {id:"st4", name:"Ana Lopez",       studentId:"2023-00004", section:"ELX-3B"},
     {id:"st5", name:"Pedro Garcia",    studentId:"2023-00005", section:"ELX-3B"},
-    {id:"st6", name:"Kevin Torres",    studentId:"2023-00006", section:"ELX-3B"}
+    {id:"st6", name:"Kevin Torres",    studentId:"2023-00006", section:"ELX-3B"},
+    {id:"st7", name:"Lea D. Entero",   studentId:"2024-31681", section:"ELX-3B"}
   ],
   staff: [
     {id:"sf1", name:"Justin Bardiago", role:"Admin", email:"justin.bardiago@evsu.edu.ph"}
@@ -342,9 +344,38 @@ var dashSearch = "", dashCategory = "All";
 function loadDb(){
   try{
     var raw = localStorage.getItem(LS_KEY);
-    if(raw){ var parsed = JSON.parse(raw); if(parsed && parsed.items && parsed.loans) return parsed; }
+    if(raw){
+      var parsed = JSON.parse(raw);
+      if(parsed && parsed.items && parsed.loans){
+        if(!parsed.students) parsed.students = [];
+        if(!parsed.staff) parsed.staff = [];
+        var storedVersion = parsed._seedVersion || 1;
+        var changed = false;
+        if(storedVersion < SEED_VERSION){
+          SEED.students.forEach(function(seedStudent){
+            var exists = parsed.students.some(function(s){ return s.studentId && seedStudent.studentId && s.studentId.toLowerCase() === seedStudent.studentId.toLowerCase(); });
+            if(!exists){ parsed.students.push(JSON.parse(JSON.stringify(seedStudent))); changed = true; }
+          });
+          SEED.staff.forEach(function(seedStaff){
+            var existsStaff = parsed.staff.some(function(s){ return s.email && seedStaff.email && s.email.toLowerCase() === seedStaff.email.toLowerCase(); });
+            if(!existsStaff){ parsed.staff.push(JSON.parse(JSON.stringify(seedStaff))); changed = true; }
+          });
+          parsed._seedVersion = SEED_VERSION;
+          changed = true;
+        }
+        // Safety: always ensure Lea D. Entero is present even if version was already bumped elsewhere
+        var hasLea = parsed.students.some(function(s){ return s.studentId && s.studentId.toLowerCase() === "2024-31681"; });
+        if(!hasLea){
+          parsed.students.push({id:"st7", name:"Lea D. Entero", studentId:"2024-31681", section:"ELX-3B"});
+          changed = true;
+        }
+        if(changed){ try{ localStorage.setItem(LS_KEY, JSON.stringify(parsed)); }catch(e2){} }
+        return parsed;
+      }
+    }
   }catch(e){}
   var copy = JSON.parse(JSON.stringify(SEED));
+  copy._seedVersion = SEED_VERSION;
   saveDb(copy);
   return copy;
 }
