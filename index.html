@@ -119,6 +119,13 @@
   .stat .ic svg{width:24px;height:24px}
   .stat .num{font-size:27px;font-weight:800;line-height:1}
   .stat .lbl{font-size:13.5px;opacity:.92}
+  .stat.clickable{cursor:pointer}
+  .stat.clickable:hover{filter:brightness(1.07)}
+  .stat.clickable:active{transform:scale(.98)}
+  .back-btn{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);color:#fff;border-radius:8px;width:38px;height:38px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:0 0 38px}
+  .back-btn:hover{background:rgba(255,255,255,.22)}
+  .back-btn svg{width:20px;height:20px}
+  .back-btn.hidden{display:none}
   .stat.blue{background:var(--blue)} .stat.green{background:var(--green)}
   .stat.orange{background:var(--orange)} .stat.red{background:var(--red)}
 
@@ -285,6 +292,9 @@
       <button class="hamburger" id="hamburger" aria-label="Open menu">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
       </button>
+      <button class="back-btn hidden" id="backBtn" type="button" aria-label="Go back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M15 5l-7 7 7 7"/></svg>
+      </button>
       <div>
         <div class="tb-title">Electro<span>Stock</span></div>
         <div class="tb-sub">Electronics Laboratory Inventory System — Eastern Visayas State University - Ormoc campus</div>
@@ -372,6 +382,28 @@ var SEED = {
 var db = loadDb();
 var session = null; /* {kind:'student'|'staff', name, ...} */
 var currentPage = "dashboard";
+var navStack = [];
+function updateBackBtn(){
+  var b=document.getElementById("backBtn");
+  if(b) b.classList.toggle("hidden", navStack.length===0);
+}
+function goTo(page){
+  document.getElementById("sidebar").classList.remove("open");
+  if(page===currentPage){ render(); return; }
+  if(location.hash==="#"+page){ navStack.push(currentPage); currentPage=page; render(); return; }
+  location.hash=page;
+}
+window.addEventListener("hashchange", function(){
+  if(!session) return;
+  var page=location.hash.replace(/^#/,"");
+  var pages=navItems().map(function(n){ return n.page; });
+  if(!page || pages.indexOf(page)===-1) return;
+  if(page===currentPage) return;
+  if(navStack.length && navStack[navStack.length-1]===page){ navStack.pop(); }
+  else { navStack.push(currentPage); }
+  currentPage=page;
+  render();
+});
 var dashSearch = "", dashCategory = "All";
 
 function loadDb(){
@@ -494,7 +526,7 @@ staffForm.addEventListener("submit", function(e){
 });
 document.getElementById("logoutBtn").addEventListener("click", function(){
   stopScanner();
-  session=null; currentPage="dashboard";
+  session=null; currentPage="dashboard"; navStack=[];
   document.getElementById("appView").classList.add("hidden");
   document.getElementById("loginView").classList.remove("hidden");
   staffForm.classList.add("hidden"); studentForm.classList.remove("hidden");
@@ -503,6 +535,9 @@ document.getElementById("logoutBtn").addEventListener("click", function(){
 });
 document.getElementById("hamburger").addEventListener("click", function(){
   document.getElementById("sidebar").classList.toggle("open");
+});
+document.getElementById("backBtn").addEventListener("click", function(){
+  if(navStack.length){ history.back(); }
 });
 
 /* ---------------- app shell ---------------- */
@@ -552,6 +587,8 @@ function enterApp(){
   document.getElementById("topWelcome").innerHTML =
     "Welcome, "+esc(session.name)+"<small>"+(isStaff ? esc(session.email) : "Student · "+esc(session.section))+"</small>";
   currentPage="dashboard";
+  navStack=[];
+  try{ history.replaceState(null,"","#dashboard"); }catch(e){}
   render();
 }
 function renderNav(){
@@ -561,9 +598,7 @@ function renderNav(){
   }).join("");
   nav.querySelectorAll("button").forEach(function(b){
     b.addEventListener("click", function(){
-      currentPage=b.getAttribute("data-page");
-      document.getElementById("sidebar").classList.remove("open");
-      render();
+      goTo(b.getAttribute("data-page"));
     });
   });
 }
@@ -583,6 +618,7 @@ function render(){
   else if(currentPage==="myitems") c.innerHTML = viewMyItems();
   else if(currentPage==="about") c.innerHTML = viewAbout();
   bindPage();
+  updateBackBtn();
   window.scrollTo(0,0);
 }
 
@@ -598,10 +634,10 @@ function statsHtml(){
   var overdue=db.loans.filter(isOverdue).length;
   var avail=total-borrowed;
   return '<section class="stats">' +
-    statCard("blue", ICONS.box, total, "Total Items") +
-    statCard("green", ICONS.check, avail, "Available") +
-    statCard("orange", ICONS.swap, borrowed, "Borrowed") +
-    statCard("red", ICONS.warn, overdue, "Overdue") +
+    statCard("blue", ICONS.box, total, "Total Items", "inventory") +
+    statCard("green", ICONS.check, avail, "Available", "inventory") +
+    statCard("orange", ICONS.swap, borrowed, "Borrowed", "records") +
+    statCard("red", ICONS.warn, overdue, "Overdue", "records") +
     "</section>";
 }
 function studentStatsHtml(){
@@ -612,13 +648,14 @@ function studentStatsHtml(){
   var myOverdue=mine.filter(isOverdue).length;
   return '<section class="stats">' +
     statCard("blue", ICONS.box, availTotal, "Available to Borrow") +
-    statCard("green", ICONS.check, myBorrowed, "My Borrowed") +
-    statCard("orange", ICONS.clock, myReturned, "My Returned") +
-    statCard("red", ICONS.warn, myOverdue, "My Overdue") +
+    statCard("green", ICONS.check, myBorrowed, "My Borrowed", "myitems") +
+    statCard("orange", ICONS.clock, myReturned, "My Returned", "myitems") +
+    statCard("red", ICONS.warn, myOverdue, "My Overdue", "myitems") +
     "</section>";
 }
-function statCard(color, icon, num, lbl){
-  return '<div class="stat '+color+'"><div class="ic">'+icon+'</div><div><div class="num">'+num+'</div><div class="lbl">'+lbl+"</div></div></div>";
+function statCard(color, icon, num, lbl, page){
+  var click = page ? ' data-page="'+page+'" tabindex="0" role="button" aria-label="'+lbl+'"' : "";
+  return '<div class="stat '+color+(page?" clickable":"")+'"'+click+'><div class="ic">'+icon+'</div><div><div class="num">'+num+'</div><div class="lbl">'+lbl+"</div></div></div>";
 }
 function itemCard(item){
   var av=availableOf(item);
@@ -852,7 +889,8 @@ function qrPayload(loan, type){
     item:loan.itemName,
     itemId:loan.itemId,
     date:loan.borrowDate,
-    due:loan.returnDate
+    due:loan.returnDate,
+    purpose:loan.purpose||""
   });
 }
 function qrImgHtml(text){
@@ -869,6 +907,7 @@ function qrDetailsHtml(loan){
   return '<div class="qr-details">' +
     "<div><span>Borrower</span><b>"+esc(loan.borrower)+"</b></div>" +
     "<div><span>Item</span><b>"+esc(loan.itemName)+"</b></div>" +
+    "<div><span>Purpose</span><b>"+esc(loan.purpose||"—")+"</b></div>" +
     "<div><span>Borrow date</span><b>"+fmtDate(loan.borrowDate)+"</b></div>" +
     "<div><span>Due date</span><b>"+fmtDate(loan.returnDate)+"</b></div>" +
     "</div>";
@@ -1017,6 +1056,7 @@ function scanRecordHtml(p, kindLabel){
     "<div><span>Student ID</span><b>"+esc(p.sid||"—")+"</b></div>" +
     "<div><span>Section</span><b>"+esc(p.section||"—")+"</b></div>" +
     "<div><span>Item</span><b>"+esc(p.item||"—")+"</b></div>" +
+    "<div><span>Purpose</span><b>"+esc(p.purpose||"—")+"</b></div>" +
     "<div><span>Borrow date</span><b>"+fmtDate(p.date||"")+"</b></div>" +
     "<div><span>Due date</span><b>"+fmtDate(p.due||"")+"</b></div>" +
     "</div>" +
@@ -1099,7 +1139,7 @@ function confirmScanBorrow(){
     finishScan();
     return;
   }
-  db.loans.push({id:p.id, borrower:p.student||"", itemId:p.itemId||"", itemName:p.item||"", borrowDate:p.date||todayStr(), returnDate:p.due||p.date||todayStr(), purpose:"QR borrow (scanned)", status:"borrowed", returnedAt:""});
+  db.loans.push({id:p.id, borrower:p.student||"", itemId:p.itemId||"", itemName:p.item||"", borrowDate:p.date||todayStr(), returnDate:p.due||p.date||todayStr(), purpose:p.purpose||"QR borrow (scanned)", status:"borrowed", returnedAt:""});
   if(p.sid){
     var known=db.students.some(function(s){ return s.studentId && s.studentId.toLowerCase()===String(p.sid).toLowerCase(); });
     if(!known) db.students.push({id:uid("st"), name:p.student||"", studentId:p.sid, section:p.section||""});
@@ -1126,7 +1166,7 @@ function confirmScanReturn(){
     return;
   }
   if(p.student && p.item && p.date){
-    db.loans.push({id:p.id, borrower:p.student, itemId:p.itemId||"", itemName:p.item, borrowDate:p.date, returnDate:p.due||p.date, purpose:"QR return (scanned)", status:"returned", returnedAt:todayStr()});
+    db.loans.push({id:p.id, borrower:p.student, itemId:p.itemId||"", itemName:p.item, borrowDate:p.date, returnDate:p.due||p.date, purpose:p.purpose||"QR return (scanned)", status:"returned", returnedAt:todayStr()});
     saveDb();
     toast("Item marked as returned.");
     scanMsg("Return recorded on this device.", true);
@@ -1300,6 +1340,12 @@ function bindBorrowButtons(scope){
   });
 }
 function bindPage(){
+  document.querySelectorAll(".stat.clickable[data-page]").forEach(function(card){
+    card.addEventListener("click", function(){ goTo(card.getAttribute("data-page")); });
+    card.addEventListener("keydown", function(e){
+      if(e.key==="Enter"||e.key===" "){ e.preventDefault(); goTo(card.getAttribute("data-page")); }
+    });
+  });
   bindBorrowButtons(document);
   var ds=document.getElementById("dashSearch");
   if(ds){
