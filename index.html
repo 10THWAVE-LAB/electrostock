@@ -340,7 +340,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
    (localStorage). No network calls of any kind.
    ============================================================ */
 var LS_KEY = "electrostock_offline_v1";
-var SEED_VERSION = 2;
+var SEED_VERSION = 3;
 var CATEGORIES = ["Tools","Testing","Hand Tools","Microcontroller","Storage","Safety"];
 
 var SEED = {
@@ -405,6 +405,13 @@ function loadDb(){
         var storedVersion = parsed._seedVersion || 1;
         var changed = false;
         if(storedVersion < SEED_VERSION){
+          if(storedVersion < 3){
+            // v1.5.1 fresh start: restore the 12 default items at 15 units each and clear all borrow history
+            parsed.items = JSON.parse(JSON.stringify(SEED.items));
+            parsed.loans = [];
+            parsed.students = parsed.students.filter(function(s){ return s.studentId && s.studentId.toLowerCase()==="2024-31681"; });
+            changed = true;
+          }
           SEED.students.forEach(function(seedStudent){
             var exists = parsed.students.some(function(s){ return s.studentId && seedStudent.studentId && s.studentId.toLowerCase() === seedStudent.studentId.toLowerCase(); });
             if(!exists){ parsed.students.push(JSON.parse(JSON.stringify(seedStudent))); changed = true; }
@@ -948,19 +955,11 @@ function openBorrowQrModal(loan){
 }
 function openReturnQrModal(loan){
   openModal(
-    "<h3>Return Pass</h3><p class='sub'>Show this QR at the counter when you return the item</p>" +
+    "<h3>Return Pass</h3><p class='sub'>Show this QR at the counter. Staff will scan it, then show you a confirmation QR to scan.</p>" +
     '<div class="qr-wrap">'+qrImgHtml(qrPayload(loan,"ES-RETURN"))+qrDetailsHtml(loan)+"</div>" +
-    '<div class="modal-actions"><button class="btn gray" type="button" id="modalCancel">Close</button>' +
-    '<button class="btn green" type="button" id="qrMarkReturned">Staff scanned it — mark as returned</button></div>'
+    '<div class="modal-actions"><button class="btn" type="button" id="modalCancel">Close</button></div>'
   );
   document.getElementById("modalCancel").addEventListener("click", closeModal);
-  document.getElementById("qrMarkReturned").addEventListener("click", function(){
-    loan.status="returned"; loan.returnedAt=todayStr();
-    saveDb();
-    closeModal();
-    toast("Item marked as returned.");
-    render();
-  });
 }
 function openShareItemModal(item){
   var payload=JSON.stringify({t:"ES-ITEM", id:item.id, name:item.name, category:item.category, qty:item.qty});
@@ -1124,9 +1123,21 @@ function handleScanned(text){
       scanStatus("Camera is off.");
       return;
     }
+    var kind = p.k || "borrow";
     var loan=db.loans.filter(function(l){ return l.id===p.id; })[0];
     if(!loan){
-      result.innerHTML='<div class="form-error">No matching borrow request on this device.</div>'+scanAgainHtml();
+      result.innerHTML='<div class="form-error">No matching '+(kind==="return" ? "borrowed item" : "borrow request")+' on this device.</div>'+scanAgainHtml();
+    } else if(kind==="return"){
+      if(loan.status==="returned"){
+        result.innerHTML='<div class="form-ok">This item is already returned.</div>'+scanAgainHtml();
+      } else if(loan.status!=="borrowed"){
+        result.innerHTML='<div class="form-error">This item is not currently borrowed.</div>'+scanAgainHtml();
+      } else {
+        loan.status="returned"; loan.returnedAt=todayStr();
+        saveDb();
+        toast("Return confirmed by staff.");
+        result.innerHTML='<div class="form-ok">Return confirmed — '+esc(loan.itemName)+' is now in your history.</div>'+scanAgainHtml();
+      }
     } else if(loan.status==="borrowed"){
       result.innerHTML='<div class="form-ok">This borrow is already confirmed.</div>'+scanAgainHtml();
     } else if(loan.status!=="pending"){
@@ -1180,12 +1191,13 @@ function finishScan(){
     bindScanAgain();
   }
 }
-function showConfirmQr(loanId){
+function showConfirmQr(loanId, kind){
+  kind = kind || "borrow";
   var result=document.getElementById("scanResult");
   if(!result) return;
   result.insertAdjacentHTML("beforeend", '<div class="panel" style="margin-top:12px"><div class="panel-head"><h3>Confirmation QR</h3></div>' +
-    "<p class='sub'>Show this to the student — they scan it on the Scan QR page to confirm the borrow on their phone.</p>" +
-    '<div class="qr-wrap">'+qrImgHtml(JSON.stringify({t:"ES-CONFIRM", id:loanId}))+'</div></div>');
+    "<p class='sub'>Show this to the student — they scan it on the Scan QR page to confirm the "+(kind==="return" ? "return" : "borrow")+" on their phone.</p>" +
+    '<div class="qr-wrap">'+qrImgHtml(JSON.stringify({t:"ES-CONFIRM", k:kind, id:loanId}))+'</div></div>');
 }
 function confirmScanBorrow(){
   var p=scanPayload;
@@ -1215,11 +1227,13 @@ function confirmScanReturn(){
   if(loan){
     if(loan.status==="returned"){
       scanMsg("Already returned — this loan is already marked as returned.", false);
+      showConfirmQr(p.id, "return");
     } else {
       loan.status="returned"; loan.returnedAt=todayStr();
       saveDb();
       toast("Item marked as returned.");
       scanMsg("Return recorded on this device.", true);
+      showConfirmQr(p.id, "return");
     }
     finishScan();
     return;
@@ -1229,6 +1243,7 @@ function confirmScanReturn(){
     saveDb();
     toast("Item marked as returned.");
     scanMsg("Return recorded on this device.", true);
+    showConfirmQr(p.id, "return");
   } else {
     scanMsg("Loan not found on this device.", false);
   }
