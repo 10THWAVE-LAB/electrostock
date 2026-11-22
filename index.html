@@ -560,7 +560,7 @@ function navItems(){
   return [
     {page:"dashboard", label:"Dashboard", icon:ICONS.dash},
     {page:"myitems", label:"My Borrowed Items", icon:ICONS.list},
-    {page:"scanitem", label:"Scan Item QR", icon:ICONS.qr},
+    {page:"scanitem", label:"Scan QR", icon:ICONS.qr},
     {page:"about", label:"About", icon:ICONS.info}
   ];
 }
@@ -756,6 +756,26 @@ function viewMyItems(){
   var mine=db.loans.filter(function(l){return l.borrower===session.name;});
   var current=mine.filter(function(l){return l.status==="borrowed";});
   var history=mine.filter(function(l){return l.status==="returned"||l.status==="rejected";});
+  var pending=mine.filter(function(l){return l.status==="pending";});
+  var pendingHtml="";
+  if(pending.length){
+    var pbody = pending.map(function(l){
+      return "<tr>" +
+        '<td data-l="Borrower"><b>'+esc(l.borrower)+"</b></td>" +
+        '<td data-l="Item">'+esc(l.itemName)+"</td>" +
+        '<td data-l="Borrow date">'+fmtDate(l.borrowDate)+"</td>" +
+        '<td data-l="Return date">'+fmtDate(l.returnDate)+"</td>" +
+        '<td data-l="Purpose">'+esc(l.purpose||"—")+"</td>" +
+        '<td data-l="Status">'+statusPill(l)+"</td>" +
+        '<td data-l="Actions"><div class="row-actions">' +
+          '<button class="btn small" type="button" data-qr-borrow="'+l.id+'">Show QR</button>' +
+          '<button class="btn small red" type="button" data-cancel-pending="'+l.id+'">Cancel</button>' +
+        "</div></td></tr>";
+    }).join("");
+    pendingHtml = '<section class="panel"><div class="panel-head"><h3>'+ICONS.clock+' Pending Confirmation</h3></div>' +
+      "<p class='sub'>Waiting for lab staff to scan your QR at the counter. The item is not counted as borrowed until staff confirms it.</p>" +
+      '<div style="overflow-x:auto"><table class="resp"><thead><tr><th>Borrower</th><th>Item</th><th>Borrow Date</th><th>Return Date</th><th>Purpose</th><th>Status</th><th>Actions</th></tr></thead><tbody>'+pbody+"</tbody></table></div></section>";
+  }
   var currentHtml;
   if(!current.length){
     currentHtml = '<div class="empty">Nothing here yet.</div>';
@@ -776,6 +796,7 @@ function viewMyItems(){
     currentHtml = '<div style="overflow-x:auto"><table class="resp"><thead><tr><th>Borrower</th><th>Item</th><th>Borrow Date</th><th>Return Date</th><th>Purpose</th><th>Status</th><th>Actions</th></tr></thead><tbody>'+body+"</tbody></table></div>";
   }
   var html="";
+  html += pendingHtml;
   html += '<section class="panel"><div class="panel-head"><h3>'+ICONS.box+' My Borrowed Items</h3></div>' + currentHtml + "</section>";
   html += '<section class="panel"><div class="panel-head"><h3>'+ICONS.clock+' My History</h3></div>' + loanRows(history, ["Borrower","Item","Borrow Date","Return Date","Purpose","Status"]) + "</section>";
   return html;
@@ -800,7 +821,7 @@ function viewReports(){
   db.items.forEach(function(i){ if(byCat[i.category]){ byCat[i.category].units+=i.qty; byCat[i.category].kinds++; } });
   var catList=CATEGORIES.map(function(c){ return "<li><b>"+c+":</b> "+byCat[c].units+" units ("+byCat[c].kinds+" kinds)</li>"; }).join("");
   var counts={};
-  db.loans.forEach(function(l){ if(l.status!=="rejected") counts[l.itemName]=(counts[l.itemName]||0)+1; });
+  db.loans.forEach(function(l){ if(l.status==="borrowed"||l.status==="returned") counts[l.itemName]=(counts[l.itemName]||0)+1; });
   var top=Object.keys(counts).map(function(k){return {name:k,n:counts[k]};}).sort(function(a,b){return b.n-a.n;}).slice(0,5);
   var topList= top.length ? top.map(function(t){ return "<li><b>"+esc(t.name)+":</b> borrowed "+t.n+"×</li>"; }).join("") : "<li>No borrows yet.</li>";
   var overdue=db.loans.filter(isOverdue);
@@ -872,11 +893,11 @@ function openBorrowModal(item){
     if(!borrower){ document.getElementById("borrowErr").innerHTML='<div class="form-error">Please enter the borrower name.</div>'; return; }
     if(!rd || rd<bd){ document.getElementById("borrowErr").innerHTML='<div class="form-error">Return date must be on or after the borrow date.</div>'; return; }
     if(availableOf(item)<=0){ document.getElementById("borrowErr").innerHTML='<div class="form-error">This item is out of stock.</div>'; return; }
-    var loan={id:uid("ln"), borrower:borrower, itemId:item.id, itemName:item.name, borrowDate:bd, returnDate:rd, purpose:purpose, status:"borrowed", returnedAt:""};
+    var loan={id:uid("ln"), borrower:borrower, itemId:item.id, itemName:item.name, borrowDate:bd, returnDate:rd, purpose:purpose, status:isStudent?"pending":"borrowed", returnedAt:""};
     db.loans.push(loan);
     saveDb();
     closeModal();
-    toast(isStudent ? "Item borrowed. Show your QR code at the counter." : "Item borrowed.");
+    toast(isStudent ? "Borrow request created. Show your QR code at the counter for staff to confirm." : "Item borrowed.");
     render();
     if(isStudent) openBorrowQrModal(loan);
   });
@@ -909,6 +930,8 @@ function qrImgHtml(text){
 function qrDetailsHtml(loan){
   return '<div class="qr-details">' +
     "<div><span>Borrower</span><b>"+esc(loan.borrower)+"</b></div>" +
+    (session && session.studentId ? "<div><span>Student ID</span><b>"+esc(session.studentId)+"</b></div>" : "") +
+    (session && session.section ? "<div><span>Section</span><b>"+esc(session.section)+"</b></div>" : "") +
     "<div><span>Item</span><b>"+esc(loan.itemName)+"</b></div>" +
     "<div><span>Purpose</span><b>"+esc(loan.purpose||"—")+"</b></div>" +
     "<div><span>Borrow date</span><b>"+fmtDate(loan.borrowDate)+"</b></div>" +
@@ -917,7 +940,7 @@ function qrDetailsHtml(loan){
 }
 function openBorrowQrModal(loan){
   openModal(
-    "<h3>Borrow Pass</h3><p class='sub'>Show this QR at the counter</p>" +
+    "<h3>Borrow Pass</h3><p class='sub'>"+(loan.status==="pending" ? "Pending staff confirmation — show this QR at the counter" : "Show this QR at the counter")+"</p>" +
     '<div class="qr-wrap">'+qrImgHtml(qrPayload(loan,"ES-BORROW"))+qrDetailsHtml(loan)+"</div>" +
     '<div class="modal-actions"><button class="btn" type="button" id="modalCancel">Done</button></div>'
   );
@@ -979,8 +1002,8 @@ function viewScanQR(){
     "</section>";
 }
 function viewScanItem(){
-  return '<section class="panel"><div class="panel-head"><h3>'+ICONS.qr+' Scan Item QR</h3></div>' +
-    "<p class='sub' style='text-align:center'>Point the camera at an item QR code shared by lab staff.</p>" +
+  return '<section class="panel"><div class="panel-head"><h3>'+ICONS.qr+' Scan QR</h3></div>' +
+    "<p class='sub' style='text-align:center'>Point the camera at an item QR code shared by lab staff, or a confirmation QR shown by staff at the counter.</p>" +
     '<video id="scanVideo" class="scan-video" playsinline muted></video>' +
     '<canvas id="scanCanvas" class="hidden"></canvas>' +
     '<p class="scan-status" id="scanStatus">Camera is off.</p>' +
@@ -1094,6 +1117,30 @@ function handleScanned(text){
     document.getElementById("scanConfirmBtn").addEventListener("click", confirmScanItem);
     return;
   }
+  if(p && p.t==="ES-CONFIRM"){
+    if(!isStudentScan){
+      result.innerHTML='<div class="form-error">That QR code is for the student — show it to them to scan.</div>'+scanAgainHtml();
+      bindScanAgain();
+      scanStatus("Camera is off.");
+      return;
+    }
+    var loan=db.loans.filter(function(l){ return l.id===p.id; })[0];
+    if(!loan){
+      result.innerHTML='<div class="form-error">No matching borrow request on this device.</div>'+scanAgainHtml();
+    } else if(loan.status==="borrowed"){
+      result.innerHTML='<div class="form-ok">This borrow is already confirmed.</div>'+scanAgainHtml();
+    } else if(loan.status!=="pending"){
+      result.innerHTML='<div class="form-error">This borrow request is no longer pending.</div>'+scanAgainHtml();
+    } else {
+      loan.status="borrowed";
+      saveDb();
+      toast("Borrow confirmed by staff.");
+      result.innerHTML='<div class="form-ok">Borrow confirmed — '+esc(loan.itemName)+' is now in your borrowed items.</div>'+scanAgainHtml();
+    }
+    bindScanAgain();
+    scanStatus("Camera is off.");
+    return;
+  }
   if(!p || !p.t || (p.t!=="ES-BORROW" && p.t!=="ES-RETURN")){
     result.innerHTML='<div class="form-error">'+(isStudentScan ? "That QR code is not a TechVault item code." : "That QR code is not a TechVault borrow code.")+"</div>"+scanAgainHtml();
     bindScanAgain();
@@ -1133,12 +1180,20 @@ function finishScan(){
     bindScanAgain();
   }
 }
+function showConfirmQr(loanId){
+  var result=document.getElementById("scanResult");
+  if(!result) return;
+  result.insertAdjacentHTML("beforeend", '<div class="panel" style="margin-top:12px"><div class="panel-head"><h3>Confirmation QR</h3></div>' +
+    "<p class='sub'>Show this to the student — they scan it on the Scan QR page to confirm the borrow on their phone.</p>" +
+    '<div class="qr-wrap">'+qrImgHtml(JSON.stringify({t:"ES-CONFIRM", id:loanId}))+'</div></div>');
+}
 function confirmScanBorrow(){
   var p=scanPayload;
   if(!p) return;
   var exists=db.loans.some(function(l){ return l.id===p.id; });
   if(exists){
     scanMsg("Already recorded — this borrow is already on this device.", false);
+    showConfirmQr(p.id);
     finishScan();
     return;
   }
@@ -1150,6 +1205,7 @@ function confirmScanBorrow(){
   saveDb();
   toast("Borrow recorded.");
   scanMsg("Borrow recorded on this device.", true);
+  showConfirmQr(p.id);
   finishScan();
 }
 function confirmScanReturn(){
@@ -1452,6 +1508,16 @@ function bindPage(){
     b.addEventListener("click", function(){
       var loan=db.loans.filter(function(l){return l.id===b.getAttribute("data-qr-return");})[0];
       if(loan) openReturnQrModal(loan);
+    });
+  });
+  document.querySelectorAll("[data-cancel-pending]").forEach(function(b){
+    b.addEventListener("click", function(){
+      var loan=db.loans.filter(function(l){return l.id===b.getAttribute("data-cancel-pending");})[0];
+      if(!loan || loan.status!=="pending") return;
+      confirmModal("Cancel borrow request?", "Cancel your request for \""+loan.itemName+"\"? Staff will not see this request.", "Cancel request", function(){
+        db.loans=db.loans.filter(function(l){return l.id!==loan.id;});
+        saveDb(); toast("Borrow request cancelled."); render();
+      });
     });
   });
   var scanStart=document.getElementById("scanStartBtn");
