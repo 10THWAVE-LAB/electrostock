@@ -340,13 +340,34 @@
     <!-- Staff sign-in (separate screen) -->
     <form id="staffLoginForm" class="hidden" autocomplete="off">
       <h2>Lab Staff Sign In</h2>
-      <p class="hint">Staff only. Sign in with your registered EVSU email address.</p>
+      <p class="hint">Staff only. Sign in with your registered EVSU email address and password.</p>
       <div id="staffLoginError"></div>
       <div class="field">
         <label for="tlEmail">EVSU Email</label>
         <input id="tlEmail" type="email" placeholder="Enter your EVSU email" required />
       </div>
+      <div class="field">
+        <label for="tlPass">Password</label>
+        <input id="tlPass" type="password" placeholder="Enter your password" />
+      </div>
       <button class="btn block" type="submit">Sign in as Lab Staff</button>
+    </form>
+
+    <!-- Staff set-password (accounts created before staff passwords existed) -->
+    <form id="staffSetPassForm" class="hidden" autocomplete="off">
+      <h2>Set Your Staff Password</h2>
+      <p class="hint">Your staff account was created before passwords were added. Set a password to continue — it must be at least 6 characters.</p>
+      <div id="staffSetPassError"></div>
+      <div class="field">
+        <label for="tspPass">New Password</label>
+        <input id="tspPass" type="password" required />
+      </div>
+      <div class="field">
+        <label for="tspPass2">Confirm New Password</label>
+        <input id="tspPass2" type="password" required />
+      </div>
+      <button class="btn block" type="submit">Set Password &amp; Sign In</button>
+      <p class="hint" style="text-align:center;margin-top:12px"><a href="#" id="toStaffLoginLink">← Back to staff sign-in</a></p>
     </form>
 
     <div class="login-foot">
@@ -599,6 +620,8 @@ function statusPill(loan){
 /* ---------------- login ---------------- */
 var studentForm = document.getElementById("studentLoginForm");
 var staffForm = document.getElementById("staffLoginForm");
+var staffSetPassForm = document.getElementById("staffSetPassForm");
+var pendingStaffPass = null; // staff record awaiting a first password
 var registerForm = document.getElementById("studentRegisterForm");
 function hashPassword(pw, salt){
   // Salted cyrb53 hash — demo-grade: passwords are never stored in plain text,
@@ -626,6 +649,7 @@ var registerPhotoData = "";
 function showStudentLogin(){
   registerForm.classList.add("hidden");
   staffForm.classList.add("hidden");
+  staffSetPassForm.classList.add("hidden");
   studentForm.classList.remove("hidden");
   document.getElementById("toStudentLink").classList.add("hidden");
   document.getElementById("toStaffLink").classList.remove("hidden");
@@ -663,6 +687,7 @@ function showRegisterForm(mode, student){
   document.getElementById("rgPass2").value = "";
   studentForm.classList.add("hidden");
   staffForm.classList.add("hidden");
+  staffSetPassForm.classList.add("hidden");
   registerForm.classList.remove("hidden");
   document.getElementById("toStudentLink").classList.add("hidden");
   document.getElementById("toStaffLink").classList.add("hidden");
@@ -682,13 +707,13 @@ document.getElementById("rgPhoto").addEventListener("change", function(){
 });
 document.getElementById("toStaffLink").addEventListener("click", function(e){
   e.preventDefault();
-  studentForm.classList.add("hidden"); staffForm.classList.remove("hidden");
+  studentForm.classList.add("hidden"); staffSetPassForm.classList.add("hidden"); staffForm.classList.remove("hidden");
   document.getElementById("toStaffLink").classList.add("hidden");
   document.getElementById("toStudentLink").classList.remove("hidden");
 });
 document.getElementById("toStudentLink").addEventListener("click", function(e){
   e.preventDefault();
-  staffForm.classList.add("hidden"); studentForm.classList.remove("hidden");
+  staffForm.classList.add("hidden"); staffSetPassForm.classList.add("hidden"); studentForm.classList.remove("hidden");
   document.getElementById("toStudentLink").classList.add("hidden");
   document.getElementById("toStaffLink").classList.remove("hidden");
 });
@@ -745,15 +770,50 @@ registerForm.addEventListener("submit", function(e){
 staffForm.addEventListener("submit", function(e){
   e.preventDefault();
   var email=document.getElementById("tlEmail").value.trim().toLowerCase();
+  var pw=document.getElementById("tlPass").value;
   if(email.indexOf("@evsu.edu.ph")===-1 || email.slice(-12)!=="@evsu.edu.ph"){
     loginError("staffLoginError","Please use a valid EVSU email address (must end in @evsu.edu.ph)."); return;
   }
   var found=null;
   db.staff.forEach(function(s){ if(s.email.toLowerCase()===email) found=s; });
   if(!found){ loginError("staffLoginError","That EVSU email is not registered as a lab staff account."); return; }
+  if(!found.passHash){
+    // Account created before staff passwords existed — set a password first
+    loginError("staffLoginError","");
+    showStaffSetPass(found);
+    return;
+  }
+  if(!pw){ loginError("staffLoginError","Please enter your password."); return; }
+  if(found.passHash !== hashPassword(pw, found.email)){ loginError("staffLoginError","Incorrect password."); return; }
   loginError("staffLoginError","");
   session={kind:"staff", id:found.id, name:found.name, role:found.role, email:found.email, photo:found.photo||""};
   enterApp();
+});
+function showStaffSetPass(staff){
+  pendingStaffPass = staff;
+  loginError("staffSetPassError","");
+  document.getElementById("tspPass").value = "";
+  document.getElementById("tspPass2").value = "";
+  staffForm.classList.add("hidden");
+  staffSetPassForm.classList.remove("hidden");
+}
+staffSetPassForm.addEventListener("submit", function(e){
+  e.preventDefault();
+  var pw=document.getElementById("tspPass").value;
+  var pw2=document.getElementById("tspPass2").value;
+  if(!pendingStaffPass){ loginError("staffSetPassError","No staff account selected. Please sign in again."); return; }
+  if(!pw || pw.length<6){ loginError("staffSetPassError","Password must be at least 6 characters."); return; }
+  if(pw!==pw2){ loginError("staffSetPassError","Passwords do not match."); return; }
+  pendingStaffPass.passHash = hashPassword(pw, pendingStaffPass.email);
+  if(!saveDb()){ loginError("staffSetPassError","Could not save. Please try again."); return; }
+  loginError("staffSetPassError","");
+  var found = pendingStaffPass; pendingStaffPass = null;
+  session={kind:"staff", id:found.id, name:found.name, role:found.role, email:found.email, photo:found.photo||""};
+  enterApp();
+});
+document.getElementById("toStaffLoginLink").addEventListener("click", function(e){
+  e.preventDefault(); pendingStaffPass=null;
+  staffSetPassForm.classList.add("hidden"); staffForm.classList.remove("hidden");
 });
 function doLogout(){
   stopScanner();
@@ -764,6 +824,7 @@ function doLogout(){
   document.getElementById("appView").classList.add("hidden");
   document.getElementById("loginView").classList.remove("hidden");
   registerForm.classList.add("hidden");
+  staffSetPassForm.classList.add("hidden");
   staffForm.classList.add("hidden"); studentForm.classList.remove("hidden");
   document.getElementById("toStudentLink").classList.add("hidden");
   document.getElementById("toStaffLink").classList.remove("hidden");
@@ -806,9 +867,7 @@ function renderProfileDropdown(){
   var sub = isStaff ? esc(session.email)+" · "+esc(session.role) : "ID "+esc(session.studentId)+" · "+esc(session.section);
   var h = '<div class="pd-head">'+avatarImgHtml("","pd-initials")+'<div class="pd-name">'+esc(session.name)+'</div><div class="pd-sub">'+sub+'</div></div>';
   h += '<button class="pd-item" type="button" id="pdUpdatePhoto">'+PD_ICONS.photo+'Update Photo</button>';
-  if(!isStaff){
-    h += '<button class="pd-item" type="button" id="pdChangePass">'+PD_ICONS.lock+'Change Password</button>';
-  }
+  h += '<button class="pd-item" type="button" id="pdChangePass">'+PD_ICONS.lock+'Change Password</button>';
   h += '<button class="pd-item" type="button" id="pdAccountInfo">'+PD_ICONS.user+'Account Info</button>';
   h += '<button class="pd-item danger" type="button" id="pdLogout">'+PD_ICONS.logout+'Logout</button>';
   document.getElementById("profileDropdown").innerHTML = h;
@@ -867,13 +926,19 @@ function openChangePassword(){
     var cur=document.getElementById("cpCurrent").value;
     var nw=document.getElementById("cpNew").value;
     var nw2=document.getElementById("cpNew2").value;
-    var rec=null;
-    (db.students||[]).forEach(function(s){ if(s.id===session.id) rec=s; });
-    if(!rec){ loginError("changePassError","Your student record was not found."); return; }
-    if(!rec.passHash || rec.passHash!==hashPassword(cur, rec.studentId)){ loginError("changePassError","Current password is incorrect."); return; }
+    var rec=null, salt="";
+    if(session.kind==="staff"){
+      (db.staff||[]).forEach(function(s){ if(s.id===session.id) rec=s; });
+      if(rec) salt=rec.email;
+    } else {
+      (db.students||[]).forEach(function(s){ if(s.id===session.id) rec=s; });
+      if(rec) salt=rec.studentId;
+    }
+    if(!rec){ loginError("changePassError","Your account record was not found."); return; }
+    if(!rec.passHash || rec.passHash!==hashPassword(cur, salt)){ loginError("changePassError","Current password is incorrect."); return; }
     if(!nw || nw.length<6){ loginError("changePassError","New password must be at least 6 characters."); return; }
     if(nw!==nw2){ loginError("changePassError","New passwords do not match."); return; }
-    rec.passHash=hashPassword(nw, rec.studentId);
+    rec.passHash=hashPassword(nw, salt);
     if(!saveDb()){ loginError("changePassError","Could not save. Please try again."); return; }
     closeModal();
     toast("Password changed.");
@@ -1172,14 +1237,18 @@ function viewUsers(){
     return "<tr><td data-l='Photo'>"+(s.photo?'<img class="user-thumb" src="'+esc(s.photo)+'" alt="" />':"—")+"</td><td data-l='Name'><b>"+esc(s.name)+"</b></td><td data-l='Student ID'>"+esc(s.studentId)+"</td><td data-l='Section'>"+esc(s.section)+"</td><td data-l='Role'><span class='pill green'>Student</span></td>" +
       '<td data-l="Actions"><button class="btn small red" type="button" data-del-student="'+s.id+'">Remove</button></td></tr>';
   }).join("");
+  var isAdmin = session && session.kind==="staff" && session.role==="Admin";
   var staffRows=db.staff.map(function(s){
+    var actions = isAdmin
+      ? ((s.id!==session.id) ? '<button class="btn small" type="button" data-reset-staff="'+s.id+'">Reset Password</button> ' : "") + '<button class="btn small red" type="button" data-del-staff="'+s.id+'">Remove</button>'
+      : "—";
     return "<tr><td data-l='Photo'>"+(s.photo?'<img class="user-thumb" src="'+esc(s.photo)+'" alt="" />':"—")+"</td><td data-l='Name'><b>"+esc(s.name)+"</b></td><td data-l='Email'>"+esc(s.email)+"</td><td data-l='Role'><span class='pill blue'>"+esc(s.role)+"</span></td>" +
-      '<td data-l="Actions"><button class="btn small red" type="button" data-del-staff="'+s.id+'">Remove</button></td></tr>';
+      '<td data-l="Actions">'+actions+'</td></tr>';
   }).join("");
   return '<section class="panel"><div class="panel-head"><h3>'+ICONS.gear+' Students</h3><div class="spacer"></div><button class="btn" type="button" id="addStudentBtn">+ Add Student</button></div>' +
     '<div style="overflow-x:auto"><table class="resp"><thead><tr><th>Photo</th><th>Name</th><th>Student ID</th><th>Section</th><th>Role</th><th>Actions</th></tr></thead><tbody>'+studentRows+"</tbody></table></div></section>" +
     '<section class="panel"><div class="panel-head"><h3>Lab Staff</h3><div class="spacer"></div><span class="note">'+db.staff.length+" of 3 staff accounts registered</span>" +
-    '<button class="btn" type="button" id="addStaffBtn" '+(db.staff.length>=3?'disabled style="opacity:.5"':"")+">+ Add Staff</button></div>" +
+    (isAdmin ? '<button class="btn" type="button" id="addStaffBtn" '+(db.staff.length>=3?'disabled style="opacity:.5"':"")+">+ Add Staff</button>" : "") + "</div>" +
     '<div style="overflow-x:auto"><table class="resp"><thead><tr><th>Photo</th><th>Name</th><th>Email</th><th>Role</th><th>Actions</th></tr></thead><tbody>'+staffRows+"</tbody></table></div></section>";
 }
 function viewReports(){
@@ -1259,7 +1328,7 @@ function viewAbout(){
     "<li><b>Reports</b> — borrowing records and most-borrowed items at a glance</li>" +
     "<li><b>Works offline</b> — once loaded, the app runs without internet in the laboratory</li>" +
     "</ul>" +
-    "<p>Students register with their name, student ID, section, a password, and a formal attire photo, then sign in to request equipment and see their own borrowed items. Lab staff sign in with an EVSU email to manage the inventory, approve borrow requests, record returns, and view reports.</p>" +
+    "<p>Students register with their name, student ID, section, a password, and a formal attire photo, then sign in to request equipment and see their own borrowed items. Lab staff sign in with an EVSU email and password to manage the inventory, approve borrow requests, record returns, and view reports.</p>" +
     "<p>This copy runs entirely in your browser, and all records are stored in this browser on this device only. Once the page has loaded it needs no internet connection to use — but opening the link still needs internet to load the page. For fully offline use, open the downloaded single HTML file directly instead. Changes made here do not sync to the online version.</p>" +
     '<div class="kv"><div><b>Borrow</b>Request equipment from the inventory list</div><div><b>Use</b>Track due dates and overdue items</div><div><b>Return</b>Staff record returns to restore stock</div></div>' +
     (session.kind==="staff"
@@ -1820,6 +1889,7 @@ function openStudentModal(){
   });
 }
 function openStaffModal(){
+  if(!session || session.kind!=="staff" || session.role!=="Admin"){ toast("Only an Admin can add staff accounts."); return; }
   if(db.staff.length>=3){ toast("Maximum of 3 staff accounts reached."); return; }
   openModal(
     "<h3>Add Lab Staff</h3><p class='sub'>"+db.staff.length+" of 3 staff accounts registered. EVSU email required.</p>" +
@@ -1827,6 +1897,8 @@ function openStaffModal(){
     '<div class="field"><label for="tfName">Full name</label><input id="tfName" type="text" required /></div>' +
     '<div class="field"><label for="tfEmail">EVSU email</label><input id="tfEmail" type="email" required placeholder="name@evsu.edu.ph" /></div>' +
     '<div class="field"><label for="tfRole">Role</label><select id="tfRole"><option>Admin</option><option>Instructor</option><option>Lab Technician</option></select></div>' +
+    '<div class="field"><label for="tfPass">Password</label><input id="tfPass" type="password" required /></div>' +
+    '<div class="field"><label for="tfPass2">Confirm Password</label><input id="tfPass2" type="password" required /></div>' +
     '<div id="staffErr"></div>' +
     '<div class="modal-actions"><button class="btn gray" type="button" id="modalCancel">Cancel</button><button class="btn" type="submit">Add Staff</button></div>' +
     "</form>"
@@ -1837,11 +1909,41 @@ function openStaffModal(){
     var name=document.getElementById("tfName").value.trim();
     var email=document.getElementById("tfEmail").value.trim().toLowerCase();
     var role=document.getElementById("tfRole").value;
+    var pw=document.getElementById("tfPass").value;
+    var pw2=document.getElementById("tfPass2").value;
+    if(!pw || pw.length<6){ document.getElementById("staffErr").innerHTML='<div class="form-error">Password must be at least 6 characters.</div>'; return; }
+    if(pw!==pw2){ document.getElementById("staffErr").innerHTML='<div class="form-error">Passwords do not match.</div>'; return; }
     if(email.slice(-12)!=="@evsu.edu.ph"){ document.getElementById("staffErr").innerHTML='<div class="form-error">Staff email must end in @evsu.edu.ph.</div>'; return; }
     if(db.staff.some(function(s){ return s.email.toLowerCase()===email; })){ document.getElementById("staffErr").innerHTML='<div class="form-error">That email is already registered as staff.</div>'; return; }
     if(db.staff.length>=3){ document.getElementById("staffErr").innerHTML='<div class="form-error">Maximum of 3 staff accounts reached.</div>'; return; }
-    db.staff.push({id:uid("sf"), name:name, role:role, email:email});
+    db.staff.push({id:uid("sf"), name:name, role:role, email:email, passHash:hashPassword(pw, email)});
     saveDb(); closeModal(); toast("Staff account added."); render();
+  });
+}
+function openStaffResetPass(staffId){
+  if(!session || session.kind!=="staff" || session.role!=="Admin"){ toast("Only an Admin can reset staff passwords."); return; }
+  var s=null;
+  (db.staff||[]).forEach(function(x){ if(x.id===staffId) s=x; });
+  if(!s) return;
+  if(s.id===session.id){ toast("Use Change Password in your profile menu for your own password."); return; }
+  openModal(
+    "<h3>Reset Staff Password</h3><p class='sub'>Set a new password for "+esc(s.name)+" ("+esc(s.email)+"). It must be at least 6 characters.</p>" +
+    '<form id="staffResetForm">' +
+    '<div class="field"><label for="trPass">New Password</label><input id="trPass" type="password" required /></div>' +
+    '<div class="field"><label for="trPass2">Confirm New Password</label><input id="trPass2" type="password" required /></div>' +
+    '<div id="staffResetErr"></div>' +
+    '<div class="modal-actions"><button class="btn gray" type="button" id="modalCancel">Cancel</button><button class="btn" type="submit">Reset Password</button></div>' +
+    "</form>"
+  );
+  document.getElementById("modalCancel").addEventListener("click", closeModal);
+  document.getElementById("staffResetForm").addEventListener("submit", function(e){
+    e.preventDefault();
+    var pw=document.getElementById("trPass").value;
+    var pw2=document.getElementById("trPass2").value;
+    if(!pw || pw.length<6){ document.getElementById("staffResetErr").innerHTML='<div class="form-error">New password must be at least 6 characters.</div>'; return; }
+    if(pw!==pw2){ document.getElementById("staffResetErr").innerHTML='<div class="form-error">New passwords do not match.</div>'; return; }
+    s.passHash=hashPassword(pw, s.email);
+    saveDb(); closeModal(); toast("Staff password reset."); render();
   });
 }
 function confirmModal(title, msg, okLabel, onOk){
@@ -1959,11 +2061,17 @@ function bindPage(){
     b.addEventListener("click", function(){
       var s=db.staff.filter(function(x){return x.id===b.getAttribute("data-del-staff");})[0];
       if(!s) return;
+      if(!session || session.kind!=="staff" || session.role!=="Admin"){ toast("Only an Admin can remove staff accounts."); return; }
       if(session && session.kind==="staff" && session.id===s.id){ toast("You cannot remove the staff account you are signed in with."); return; }
       confirmModal("Remove staff account?", "Remove "+s.name+" ("+s.email+") from lab staff?", "Remove", function(){
         db.staff=db.staff.filter(function(x){return x.id!==s.id;});
         saveDb(); toast("Staff account removed."); render();
       });
+    });
+  });
+  document.querySelectorAll("[data-reset-staff]").forEach(function(b){
+    b.addEventListener("click", function(){
+      openStaffResetPass(b.getAttribute("data-reset-staff"));
     });
   });
   var allQr=document.getElementById("allItemsQrBtn");
