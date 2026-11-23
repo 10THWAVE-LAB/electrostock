@@ -64,6 +64,9 @@
   .qr-wrap img{margin:0 auto;width:240px;max-width:80%;image-rendering:pixelated}
   .qr-wrap.qr-big img{width:300px;max-width:92%}
   .scan-items{margin:0 0 14px;padding-left:20px;font-size:14px;line-height:1.8;color:var(--dark)}
+  .about h4{margin:18px 0 8px;font-size:16px;color:var(--navy)}
+  .about-list{margin:0 0 14px;padding-left:20px;line-height:1.8}
+  .about-list li{margin-bottom:4px}
   .qr-details{text-align:left;margin:12px auto 4px;max-width:320px;font-size:14px}
   .qr-details div{display:flex;justify-content:space-between;gap:14px;padding:3px 0;border-bottom:1px dashed var(--line)}
   .qr-details div span:first-child{color:var(--muted)}
@@ -1245,6 +1248,17 @@ function guideModalHtml(){
 function viewAbout(){
   return '<section class="panel about"><div class="panel-head"><h3>'+ICONS.info+' About TechVault</h3></div>' +
     "<p><b>TechVault</b> is the Electronics Laboratory Inventory System developed by Justin Bardiago (ELX-3B) for the Electronics Laboratory of Eastern Visayas State University — Ormoc Campus. It keeps track of laboratory tools, testing instruments, and safety equipment — who borrowed what, when it is due back, and what is still available on the shelf. It is proposed for use by the Technology Department to make borrowing and returning equipment faster and easier to track.</p>" +
+    "<h4>Why TechVault</h4>" +
+    "<p>Managing laboratory equipment by hand takes time — it is hard to know at a glance what is available, who has what, and what is already overdue. TechVault puts the whole inventory on the phones the laboratory already uses, so borrowing, returning, and checking availability take seconds instead of minutes. It needs no server and no new equipment — it runs on the phones and computers the laboratory already has.</p>" +
+    "<h4>Key Features</h4>" +
+    '<ul class="about-list">' +
+    "<li><b>QR borrow and return passes</b> — students show a code, staff scan it to confirm</li>" +
+    "<li><b>Two-way confirmation</b> — a borrow only counts after staff and student both confirm</li>" +
+    "<li><b>Real-time availability</b> — the dashboard always shows what is on the shelf</li>" +
+    "<li><b>Overdue tracking</b> — late returns are flagged automatically</li>" +
+    "<li><b>Reports</b> — borrowing records and most-borrowed items at a glance</li>" +
+    "<li><b>Works offline</b> — once loaded, the app runs without internet in the laboratory</li>" +
+    "</ul>" +
     "<p>Students register with their name, student ID, section, a password, and a formal attire photo, then sign in to request equipment and see their own borrowed items. Lab staff sign in with an EVSU email to manage the inventory, approve borrow requests, record returns, and view reports.</p>" +
     "<p>This copy runs entirely in your browser, and all records are stored in this browser on this device only. Once the page has loaded it needs no internet connection to use — but opening the link still needs internet to load the page. For fully offline use, open the downloaded single HTML file directly instead. Changes made here do not sync to the online version.</p>" +
     '<div class="kv"><div><b>Borrow</b>Request equipment from the inventory list</div><div><b>Use</b>Track due dates and overdue items</div><div><b>Return</b>Staff record returns to restore stock</div></div>' +
