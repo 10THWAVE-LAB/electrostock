@@ -437,9 +437,10 @@ function closeDrawer(){
   drawerPushed = false;
 }
 function closeDrawerViaHistory(){
-  // Popping the drawer history entry closes the drawer through the popstate handler;
-  // fall back to a direct close if the entry is not there.
-  if(drawerPushed){ try{ history.back(); return; }catch(e){} }
+  // Close immediately: neutralize the pushed history entry so Back never
+  // lands on an invisible drawer step, then hide the drawer right away
+  // (no round-trip through history.back(), which can silently fail).
+  try{ history.replaceState(null, "", location.href); }catch(e){}
   closeDrawer();
 }
 window.addEventListener("popstate", function(){
