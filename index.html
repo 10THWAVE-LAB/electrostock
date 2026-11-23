@@ -158,6 +158,9 @@
   .item-card img{width:100%;height:138px;object-fit:cover;background:#e8edf4}
   .photo-preview{display:block;max-width:100%;max-height:180px;border-radius:8px;margin-top:8px;object-fit:cover;background:#e8edf4}
   .photo-preview.hidden{display:none}
+  .side-avatar{width:44px;height:44px;border-radius:50%;object-fit:cover;float:left;margin:2px 10px 2px 0;border:2px solid rgba(255,255,255,.35)}
+  .pass-photo{width:110px;height:138px;object-fit:cover;border-radius:8px;border:2px solid var(--navy);display:block;margin:0 auto 12px}
+  .user-thumb{width:40px;height:50px;object-fit:cover;border-radius:6px;border:1px solid var(--line)}
   .inv-thumb{width:44px;height:44px;object-fit:cover;border-radius:8px;vertical-align:middle;margin-right:10px;background:#e8edf4}
   .item-body{padding:11px 13px 13px;display:flex;flex-direction:column;gap:5px;flex:1}
   .item-body h4{margin:0;font-size:15.5px;color:var(--navy);text-align:center}
@@ -235,21 +238,53 @@
     <!-- Student sign-in (default screen) -->
     <form id="studentLoginForm" autocomplete="off">
       <h2>Student Sign In</h2>
-      <p class="hint">Enter your full name, student ID, and section to sign in — no registration needed.</p>
+      <p class="hint">Sign in with your student ID and password.</p>
       <div id="studentLoginError"></div>
-      <div class="field">
-        <label for="slName">Full Name</label>
-        <input id="slName" type="text" placeholder="Enter your full name" required />
-      </div>
       <div class="field">
         <label for="slId">Student ID</label>
         <input id="slId" type="text" placeholder="Enter your student ID" required />
       </div>
       <div class="field">
-        <label for="slSection">Section</label>
-        <input id="slSection" type="text" placeholder="Enter your section" required />
+        <label for="slPass">Password</label>
+        <input id="slPass" type="password" placeholder="Enter your password" required />
       </div>
       <button class="btn block" type="submit">Sign in as Student</button>
+      <p class="hint" style="text-align:center;margin-top:12px">New student? <a href="#" id="toRegisterLink">Register here</a></p>
+    </form>
+
+    <!-- Student registration (new accounts + completing older accounts) -->
+    <form id="studentRegisterForm" class="hidden" autocomplete="off">
+      <h2 id="regTitle">Student Registration</h2>
+      <p class="hint" id="regHint">Create your student account. Upload a clear photo of yourself in formal attire (like a 2×2 ID picture).</p>
+      <div id="studentRegisterError"></div>
+      <div class="field">
+        <label for="rgName">Full Name</label>
+        <input id="rgName" type="text" placeholder="Enter your full name" required />
+      </div>
+      <div class="field">
+        <label for="rgId">Student ID</label>
+        <input id="rgId" type="text" placeholder="Enter your student ID" required />
+      </div>
+      <div class="field">
+        <label for="rgSection">Section</label>
+        <input id="rgSection" type="text" placeholder="Enter your section" required />
+      </div>
+      <div class="field">
+        <label for="rgPass">Password</label>
+        <input id="rgPass" type="password" placeholder="At least 6 characters" required />
+      </div>
+      <div class="field">
+        <label for="rgPass2">Confirm Password</label>
+        <input id="rgPass2" type="password" placeholder="Repeat your password" required />
+      </div>
+      <div class="field">
+        <label for="rgPhoto">Formal Attire Photo</label>
+        <input id="rgPhoto" type="file" accept="image/*" />
+        <img id="rgPhotoPreview" class="photo-preview hidden" src="" alt="Formal photo preview" />
+        <p class="hint">Clear photo, formal attire, plain background if possible. You can take one with your camera.</p>
+      </div>
+      <button class="btn block" type="submit" id="regSubmitBtn">Register</button>
+      <p class="hint" style="text-align:center;margin-top:12px"><a href="#" id="toLoginLink">← Back to sign-in</a></p>
     </form>
 
     <!-- Staff sign-in (separate screen) -->
@@ -342,7 +377,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
    (localStorage). No network calls of any kind.
    ============================================================ */
 var LS_KEY = "electrostock_offline_v1";
-var SEED_VERSION = 3;
+var SEED_VERSION = 4;
 var CATEGORIES = ["Tools","Testing","Hand Tools","Microcontroller","Storage","Safety"];
 
 var SEED = {
@@ -441,6 +476,8 @@ function loadDb(){
             parsed.students = parsed.students.filter(function(s){ return s.studentId && s.studentId.toLowerCase()==="2024-31681"; });
             changed = true;
           }
+          // v1.6.0 (v4): student accounts gain passHash + photo — no record changes needed;
+          // students without a password complete registration at sign-in, history kept.
           SEED.students.forEach(function(seedStudent){
             var exists = parsed.students.some(function(s){ return s.studentId && seedStudent.studentId && s.studentId.toLowerCase() === seedStudent.studentId.toLowerCase(); });
             if(!exists){ parsed.students.push(JSON.parse(JSON.stringify(seedStudent))); changed = true; }
@@ -495,6 +532,86 @@ function statusPill(loan){
 /* ---------------- login ---------------- */
 var studentForm = document.getElementById("studentLoginForm");
 var staffForm = document.getElementById("staffLoginForm");
+var registerForm = document.getElementById("studentRegisterForm");
+function hashPassword(pw, salt){
+  // Salted cyrb53 hash — demo-grade: passwords are never stored in plain text,
+  // but this is not a substitute for server-side password hashing.
+  var str = "techvault|" + String(salt||"").toLowerCase() + "|" + String(pw);
+  var h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+  for(var i=0;i<str.length;i++){
+    var ch = str.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1>>>16), 2246822507) ^ Math.imul(h2 ^ (h2>>>13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2>>>16), 2246822507) ^ Math.imul(h1 ^ (h1>>>13), 3266489909);
+  return (h2>>>0).toString(16) + (h1>>>0).toString(16);
+}
+function findStudentById(sid){
+  sid = String(sid||"").trim().toLowerCase();
+  var found = null;
+  (db.students||[]).forEach(function(s){ if(s.studentId && s.studentId.toLowerCase()===sid) found=s; });
+  return found;
+}
+var registerMode = "new"; // "new" | "complete"
+var registerStudent = null; // existing record in "complete" mode
+var registerPhotoData = "";
+function showStudentLogin(){
+  registerForm.classList.add("hidden");
+  staffForm.classList.add("hidden");
+  studentForm.classList.remove("hidden");
+  document.getElementById("toStudentLink").classList.add("hidden");
+  document.getElementById("toStaffLink").classList.remove("hidden");
+}
+function showRegisterForm(mode, student){
+  registerMode = mode;
+  registerStudent = student || null;
+  registerPhotoData = "";
+  document.getElementById("rgPhotoPreview").classList.add("hidden");
+  document.getElementById("rgPhotoPreview").src = "";
+  document.getElementById("rgPhoto").value = "";
+  loginError("studentRegisterError","");
+  if(mode==="complete" && student){
+    document.getElementById("regTitle").textContent = "Complete Your Registration";
+    document.getElementById("regHint").textContent = "Your account was created before passwords were added. Set a password and upload your formal photo to continue — your borrow history is kept.";
+    document.getElementById("rgName").value = student.name;
+    document.getElementById("rgId").value = student.studentId;
+    document.getElementById("rgSection").value = student.section;
+    document.getElementById("rgName").disabled = true;
+    document.getElementById("rgId").disabled = true;
+    document.getElementById("rgSection").disabled = true;
+    document.getElementById("regSubmitBtn").textContent = "Complete Registration";
+  } else {
+    document.getElementById("regTitle").textContent = "Student Registration";
+    document.getElementById("regHint").textContent = "Create your student account. Upload a clear photo of yourself in formal attire (like a 2×2 ID picture).";
+    document.getElementById("rgName").value = "";
+    document.getElementById("rgId").value = "";
+    document.getElementById("rgSection").value = "";
+    document.getElementById("rgName").disabled = false;
+    document.getElementById("rgId").disabled = false;
+    document.getElementById("rgSection").disabled = false;
+    document.getElementById("regSubmitBtn").textContent = "Register";
+  }
+  document.getElementById("rgPass").value = "";
+  document.getElementById("rgPass2").value = "";
+  studentForm.classList.add("hidden");
+  staffForm.classList.add("hidden");
+  registerForm.classList.remove("hidden");
+  document.getElementById("toStudentLink").classList.add("hidden");
+  document.getElementById("toStaffLink").classList.add("hidden");
+}
+document.getElementById("toRegisterLink").addEventListener("click", function(e){ e.preventDefault(); showRegisterForm("new", null); });
+document.getElementById("toLoginLink").addEventListener("click", function(e){ e.preventDefault(); showStudentLogin(); });
+document.getElementById("rgPhoto").addEventListener("change", function(){
+  var f = this.files && this.files[0];
+  if(!f) return;
+  compressPhoto(f, function(dataUrl){
+    if(!dataUrl){ toast("That photo could not be read. Please try another one."); return; }
+    registerPhotoData = dataUrl;
+    var prev = document.getElementById("rgPhotoPreview");
+    prev.src = dataUrl; prev.classList.remove("hidden");
+  });
+});
 document.getElementById("toStaffLink").addEventListener("click", function(e){
   e.preventDefault();
   studentForm.classList.add("hidden"); staffForm.classList.remove("hidden");
@@ -512,27 +629,47 @@ function loginError(elId, msg){
 }
 studentForm.addEventListener("submit", function(e){
   e.preventDefault();
-  var name=document.getElementById("slName").value.trim();
   var sid=document.getElementById("slId").value.trim();
-  var sec=document.getElementById("slSection").value.trim();
-  if(!name || !sid || !sec){ loginError("studentLoginError","Please fill in your full name, student ID, and section."); return; }
-  if(!db.students) db.students=[];
-  var found=null;
-  db.students.forEach(function(s){
-    if(s.name.toLowerCase()===name.toLowerCase() && s.studentId.toLowerCase()===sid.toLowerCase() && s.section.toLowerCase()===sec.toLowerCase()) found=s;
-  });
-  if(!found){
-    db.students.forEach(function(s){
-      if(s.studentId && s.studentId.toLowerCase()===sid.toLowerCase()) found=s;
-    });
+  var pw=document.getElementById("slPass").value;
+  if(!sid || !pw){ loginError("studentLoginError","Please enter your student ID and password."); return; }
+  var found=findStudentById(sid);
+  if(!found){ loginError("studentLoginError","No account with that student ID. Please register first."); return; }
+  if(!found.passHash){
+    // Account created before passwords existed — complete registration, history kept
+    loginError("studentLoginError","");
+    showRegisterForm("complete", found);
+    return;
   }
-  if(!found){
-    found={id:uid("st"), name:name, studentId:sid, section:sec};
-    db.students.push(found);
-    saveDb();
-  }
+  if(found.passHash !== hashPassword(pw, found.studentId)){ loginError("studentLoginError","Incorrect password."); return; }
   loginError("studentLoginError","");
-  session={kind:"student", id:found.id, name:found.name, studentId:found.studentId, section:found.section};
+  session={kind:"student", id:found.id, name:found.name, studentId:found.studentId, section:found.section, photo:found.photo||""};
+  enterApp();
+});
+registerForm.addEventListener("submit", function(e){
+  e.preventDefault();
+  var name=document.getElementById("rgName").value.trim();
+  var sid=document.getElementById("rgId").value.trim();
+  var sec=document.getElementById("rgSection").value.trim();
+  var pw=document.getElementById("rgPass").value;
+  var pw2=document.getElementById("rgPass2").value;
+  if(!name || !sid || !sec){ loginError("studentRegisterError","Please fill in your full name, student ID, and section."); return; }
+  if(!pw || pw.length<6){ loginError("studentRegisterError","Password must be at least 6 characters."); return; }
+  if(pw!==pw2){ loginError("studentRegisterError","Passwords do not match."); return; }
+  if(!registerPhotoData){ loginError("studentRegisterError","Please upload your formal attire photo."); return; }
+  if(!db.students) db.students=[];
+  var student;
+  if(registerMode==="complete" && registerStudent){
+    student = registerStudent;
+  } else {
+    if(findStudentById(sid)){ loginError("studentRegisterError","That student ID is already registered. Please sign in instead."); return; }
+    student={id:uid("st"), name:name, studentId:sid, section:sec};
+    db.students.push(student);
+  }
+  student.passHash = hashPassword(pw, student.studentId);
+  student.photo = registerPhotoData;
+  if(!saveDb()){ loginError("studentRegisterError","Storage is full — the photo could not be saved. Try a smaller photo."); return; }
+  loginError("studentRegisterError","");
+  session={kind:"student", id:student.id, name:student.name, studentId:student.studentId, section:student.section, photo:student.photo||""};
   enterApp();
 });
 staffForm.addEventListener("submit", function(e){
@@ -554,6 +691,7 @@ document.getElementById("logoutBtn").addEventListener("click", function(){
   session=null; currentPage="dashboard"; navStack=[];
   document.getElementById("appView").classList.add("hidden");
   document.getElementById("loginView").classList.remove("hidden");
+  registerForm.classList.add("hidden");
   staffForm.classList.add("hidden"); studentForm.classList.remove("hidden");
   document.getElementById("toStudentLink").classList.add("hidden");
   document.getElementById("toStaffLink").classList.remove("hidden");
@@ -609,6 +747,7 @@ function enterApp(){
   document.getElementById("appView").classList.remove("hidden");
   var isStaff = session.kind==="staff";
   document.getElementById("sideUser").innerHTML =
+    (!isStaff && session.photo ? '<img class="side-avatar" src="'+esc(session.photo)+'" alt="" />' : "") +
     "<b>"+esc(session.name)+"</b>" +
     '<span class="role-badge'+(isStaff?"":" student")+'">'+(isStaff?esc(session.role):"Student")+"</span><br>" +
     (isStaff ? esc(session.email) : "ID "+esc(session.studentId)+" · "+esc(session.section));
@@ -843,7 +982,7 @@ function viewMyItems(){
 }
 function viewUsers(){
   var studentRows=db.students.map(function(s){
-    return "<tr><td data-l='Name'><b>"+esc(s.name)+"</b></td><td data-l='Student ID'>"+esc(s.studentId)+"</td><td data-l='Section'>"+esc(s.section)+"</td><td data-l='Role'><span class='pill green'>Student</span></td>" +
+    return "<tr><td data-l='Photo'>"+(s.photo?'<img class="user-thumb" src="'+esc(s.photo)+'" alt="" />':"—")+"</td><td data-l='Name'><b>"+esc(s.name)+"</b></td><td data-l='Student ID'>"+esc(s.studentId)+"</td><td data-l='Section'>"+esc(s.section)+"</td><td data-l='Role'><span class='pill green'>Student</span></td>" +
       '<td data-l="Actions"><button class="btn small red" type="button" data-del-student="'+s.id+'">Remove</button></td></tr>';
   }).join("");
   var staffRows=db.staff.map(function(s){
@@ -851,7 +990,7 @@ function viewUsers(){
       '<td data-l="Actions"><button class="btn small red" type="button" data-del-staff="'+s.id+'">Remove</button></td></tr>';
   }).join("");
   return '<section class="panel"><div class="panel-head"><h3>'+ICONS.gear+' Students</h3><div class="spacer"></div><button class="btn" type="button" id="addStudentBtn">+ Add Student</button></div>' +
-    '<div style="overflow-x:auto"><table class="resp"><thead><tr><th>Name</th><th>Student ID</th><th>Section</th><th>Role</th><th>Actions</th></tr></thead><tbody>'+studentRows+"</tbody></table></div></section>" +
+    '<div style="overflow-x:auto"><table class="resp"><thead><tr><th>Photo</th><th>Name</th><th>Student ID</th><th>Section</th><th>Role</th><th>Actions</th></tr></thead><tbody>'+studentRows+"</tbody></table></div></section>" +
     '<section class="panel"><div class="panel-head"><h3>Lab Staff</h3><div class="spacer"></div><span class="note">'+db.staff.length+" of 3 staff accounts registered</span>" +
     '<button class="btn" type="button" id="addStaffBtn" '+(db.staff.length>=3?'disabled style="opacity:.5"':"")+">+ Add Staff</button></div>" +
     '<div style="overflow-x:auto"><table class="resp"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Actions</th></tr></thead><tbody>'+staffRows+"</tbody></table></div></section>";
@@ -888,7 +1027,7 @@ function resetAllRecords(){
 function viewAbout(){
   return '<section class="panel about"><div class="panel-head"><h3>'+ICONS.info+' About TechVault</h3></div>' +
     "<p><b>TechVault</b> is the Electronics Laboratory Inventory System built as a capstone project. It keeps track of laboratory tools, testing instruments, and safety equipment — who borrowed what, when it is due back, and what is still available on the shelf.</p>" +
-    "<p>Students sign in with their name, student ID, and section to request equipment and see their own borrowed items. Lab staff sign in with an EVSU email to manage the inventory, approve borrow requests, record returns, and view reports.</p>" +
+    "<p>Students register with their name, student ID, section, a password, and a formal attire photo, then sign in to request equipment and see their own borrowed items. Lab staff sign in with an EVSU email to manage the inventory, approve borrow requests, record returns, and view reports.</p>" +
     "<p>This copy runs entirely in your browser, and all records are stored in this browser on this device only. Once the page has loaded it needs no internet connection to use — but opening the link still needs internet to load the page. For fully offline use, open the downloaded single HTML file directly instead. Changes made here do not sync to the online version.</p>" +
     '<div class="kv"><div><b>Borrow</b>Request equipment from the inventory list</div><div><b>Use</b>Track due dates and overdue items</div><div><b>Return</b>Staff record returns to restore stock</div></div>' +
     (session.kind==="staff"
@@ -968,7 +1107,8 @@ function qrImgHtml(text){
   }
 }
 function qrDetailsHtml(loan){
-  return '<div class="qr-details">' +
+  var photoHtml = (session && session.photo) ? '<img class="pass-photo" src="'+esc(session.photo)+'" alt="Student photo" />' : "";
+  return photoHtml + '<div class="qr-details">' +
     "<div><span>Borrower</span><b>"+esc(loan.borrower)+"</b></div>" +
     (session && session.studentId ? "<div><span>Student ID</span><b>"+esc(session.studentId)+"</b></div>" : "") +
     (session && session.section ? "<div><span>Section</span><b>"+esc(session.section)+"</b></div>" : "") +
@@ -1383,7 +1523,7 @@ function openItemModal(item){
 }
 function openStudentModal(){
   openModal(
-    "<h3>Add Student</h3><p class='sub'>The student can then sign in with these exact details.</p>" +
+    "<h3>Add Student</h3><p class='sub'>The student then signs in with this student ID and sets a password + formal photo on first sign-in.</p>" +
     '<form id="studentForm">' +
     '<div class="field"><label for="sfName">Full name</label><input id="sfName" type="text" required /></div>' +
     '<div class="field"><label for="sfId">Student ID</label><input id="sfId" type="text" required placeholder="e.g. 2023-00007" /></div>' +
