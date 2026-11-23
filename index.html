@@ -200,6 +200,7 @@
   @media (max-width:760px){
     .sidebar{position:fixed;left:0;top:0;z-index:40;transform:translateX(-105%);transition:transform .25s ease;width:250px;flex-basis:250px}
     .sidebar.open{transform:translateX(0);box-shadow:20px 0 50px rgba(0,0,0,.35)}
+    .drawer-backdrop{position:fixed;inset:0;background:rgba(8,12,38,.45);z-index:35}
     .hamburger{display:inline-flex}
     .content{padding:14px 12px 30px}
     .topbar{padding:10px 12px}
@@ -287,6 +288,7 @@
       Offline copy — data is saved in this browser only.
     </div>
   </aside>
+  <div class="drawer-backdrop hidden" id="drawerBackdrop"></div>
 
   <div class="main">
     <header class="topbar circuit-bg">
@@ -376,11 +378,38 @@ function updateBackBtn(){
   if(b) b.classList.toggle("hidden", navStack.length===0);
 }
 function goTo(page){
-  document.getElementById("sidebar").classList.remove("open");
+  var sb=document.getElementById("sidebar");
+  if(sb.classList.contains("open")){
+    // Neutralize the drawer history entry so Back never lands on an invisible step
+    try{ history.replaceState(null, "", location.href); }catch(e){}
+    closeDrawer();
+  }
   if(page===currentPage){ render(); return; }
   if(location.hash==="#"+page){ navStack.push(currentPage); currentPage=page; render(); return; }
   location.hash=page;
 }
+var drawerPushed = false;
+function openDrawer(){
+  document.getElementById("sidebar").classList.add("open");
+  document.getElementById("drawerBackdrop").classList.remove("hidden");
+  if(!drawerPushed){
+    try{ history.pushState({drawer:true}, ""); drawerPushed = true; }catch(e){}
+  }
+}
+function closeDrawer(){
+  document.getElementById("sidebar").classList.remove("open");
+  document.getElementById("drawerBackdrop").classList.add("hidden");
+  drawerPushed = false;
+}
+function closeDrawerViaHistory(){
+  // Popping the drawer history entry closes the drawer through the popstate handler;
+  // fall back to a direct close if the entry is not there.
+  if(drawerPushed){ try{ history.back(); return; }catch(e){} }
+  closeDrawer();
+}
+window.addEventListener("popstate", function(){
+  if(document.getElementById("sidebar").classList.contains("open")) closeDrawer();
+});
 window.addEventListener("hashchange", function(){
   if(!session) return;
   var page=location.hash.replace(/^#/,"");
@@ -521,6 +550,7 @@ staffForm.addEventListener("submit", function(e){
 });
 document.getElementById("logoutBtn").addEventListener("click", function(){
   stopScanner();
+  closeDrawer();
   session=null; currentPage="dashboard"; navStack=[];
   document.getElementById("appView").classList.add("hidden");
   document.getElementById("loginView").classList.remove("hidden");
@@ -529,8 +559,10 @@ document.getElementById("logoutBtn").addEventListener("click", function(){
   document.getElementById("toStaffLink").classList.remove("hidden");
 });
 document.getElementById("hamburger").addEventListener("click", function(){
-  document.getElementById("sidebar").classList.toggle("open");
+  if(document.getElementById("sidebar").classList.contains("open")) closeDrawerViaHistory();
+  else openDrawer();
 });
+document.getElementById("drawerBackdrop").addEventListener("click", closeDrawerViaHistory);
 document.getElementById("backBtn").addEventListener("click", function(){
   if(navStack.length){ history.back(); }
 });
@@ -572,6 +604,7 @@ function navItems(){
   ];
 }
 function enterApp(){
+  closeDrawer();
   document.getElementById("loginView").classList.add("hidden");
   document.getElementById("appView").classList.remove("hidden");
   var isStaff = session.kind==="staff";
