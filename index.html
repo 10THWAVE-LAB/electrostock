@@ -100,8 +100,25 @@
   .topbar .tb-title span{color:#3d9bff}
   .topbar .tb-sub{font-size:11.5px;color:#9db9e2;font-style:normal}
   .topbar .spacer{flex:1}
-  .topbar .welcome{font-size:13.5px;color:#dbe7fa;text-align:right}
-  .topbar .welcome small{display:block;color:#9db9e2;font-size:11.5px}
+  .profile-menu{position:relative}
+  .profile-chip{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.25);border-radius:999px;padding:4px 12px 4px 4px;color:#fff;cursor:pointer;font:inherit}
+  .profile-chip:hover{background:rgba(255,255,255,.16)}
+  .profile-chip .top-avatar{width:32px;height:32px;border-radius:50%;object-fit:cover;display:block}
+  .profile-chip .top-initials{width:32px;height:32px;border-radius:50%;background:#3d9bff;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px}
+  .profile-name{font-size:14px;font-weight:700;max-width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .profile-caret{font-size:12px;color:#9db9e2}
+  .profile-dropdown{position:absolute;right:0;top:calc(100% + 8px);width:280px;background:#fff;border-radius:12px;box-shadow:0 16px 40px rgba(0,0,0,.28);overflow:hidden;z-index:30;color:var(--ink)}
+  .pd-head{background:var(--navy);color:#fff;text-align:center;padding:18px 14px 14px}
+  .pd-head img{width:84px;height:84px;border-radius:50%;object-fit:cover;border:3px solid rgba(255,255,255,.5)}
+  .pd-head .pd-initials{width:84px;height:84px;border-radius:50%;background:#3d9bff;display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:800;margin:0 auto;border:3px solid rgba(255,255,255,.5)}
+  .pd-head .pd-name{font-weight:800;font-size:17px;margin-top:10px}
+  .pd-head .pd-sub{font-size:12.5px;color:#9db9e2}
+  .pd-item{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:none;border:none;border-bottom:1px solid #eef1f6;padding:12px 16px;font:inherit;font-size:14.5px;color:var(--ink);cursor:pointer}
+  .pd-item:hover{background:#f2f5fa}
+  .pd-item:last-child{border-bottom:none}
+  .pd-item.danger{color:#c62828}
+  .pd-item svg{width:19px;height:19px;flex:0 0 19px;color:var(--muted)}
+  .pd-item.danger svg{color:#c62828}
   .hamburger{display:none;background:rgba(255,255,255,.12);border:none;color:#fff;border-radius:8px;width:42px;height:42px;align-items:center;justify-content:center}
   .hamburger svg{width:22px;height:22px}
   .content{padding:18px 20px 34px;max-width:1240px;width:100%;margin:0 auto}
@@ -207,7 +224,8 @@
     .hamburger{display:inline-flex}
     .content{padding:14px 12px calc(30px + env(safe-area-inset-bottom, 0px))}
     .topbar{padding:calc(10px + env(safe-area-inset-top, 0px)) 12px 10px}
-    .topbar .welcome{display:none}
+    .profile-name{max-width:80px}
+    .profile-dropdown{width:260px}
     table.resp thead{display:none}
     table.resp tr{display:block;border:1px solid var(--line);border-radius:10px;margin-bottom:10px;padding:6px 4px;background:#fff}
     table.resp td{display:flex;justify-content:space-between;gap:12px;border-bottom:1px dashed var(--line);padding:7px 10px}
@@ -338,8 +356,15 @@
         <div class="tb-sub">Electronics Laboratory Inventory System — Eastern Visayas State University - Ormoc campus</div>
       </div>
       <div class="spacer"></div>
-      <div class="welcome" id="topWelcome"></div>
-      <button class="btn" id="logoutBtn" type="button">Logout</button>
+      <div class="profile-menu">
+        <button class="profile-chip" id="profileChip" type="button" aria-haspopup="true" aria-expanded="false">
+          <span id="topAvatarWrap"></span>
+          <span class="profile-name" id="topProfileName"></span>
+          <span class="profile-caret">▾</span>
+        </button>
+        <div class="profile-dropdown hidden" id="profileDropdown"></div>
+      </div>
+      <input type="file" id="photoUpdateInput" accept="image/*" class="hidden" />
     </header>
     <main class="content" id="pageContent"></main>
   </div>
@@ -425,6 +450,7 @@ function goTo(page){
 }
 var drawerPushed = false;
 function openDrawer(){
+  closeProfileDropdown();
   document.getElementById("sidebar").classList.add("open");
   document.getElementById("drawerBackdrop").classList.remove("hidden");
   if(!drawerPushed){
@@ -686,9 +712,10 @@ staffForm.addEventListener("submit", function(e){
   session={kind:"staff", id:found.id, name:found.name, role:found.role, email:found.email};
   enterApp();
 });
-document.getElementById("logoutBtn").addEventListener("click", function(){
+function doLogout(){
   stopScanner();
   closeDrawer();
+  closeProfileDropdown();
   session=null; currentPage="dashboard"; navStack=[];
   document.getElementById("appView").classList.add("hidden");
   document.getElementById("loginView").classList.remove("hidden");
@@ -696,12 +723,125 @@ document.getElementById("logoutBtn").addEventListener("click", function(){
   staffForm.classList.add("hidden"); studentForm.classList.remove("hidden");
   document.getElementById("toStudentLink").classList.add("hidden");
   document.getElementById("toStaffLink").classList.remove("hidden");
-});
+}
 document.getElementById("hamburger").addEventListener("click", function(){
   if(document.getElementById("sidebar").classList.contains("open")) closeDrawerViaHistory();
   else openDrawer();
 });
 document.getElementById("drawerBackdrop").addEventListener("click", closeDrawerViaHistory);
+
+/* ---------------- profile menu (top-right, like the student portal) ---------------- */
+function profileInitials(name){
+  var parts=String(name||"?").trim().split(/\s+/);
+  return ((parts[0]||"?")[0] + (parts.length>1 ? parts[parts.length-1][0] : "")).toUpperCase();
+}
+function avatarImgHtml(imgCls, initCls){
+  if(session.kind!=="staff" && session.photo) return '<img class="'+imgCls+'" src="'+esc(session.photo)+'" alt="" />';
+  return '<span class="'+initCls+'">'+esc(profileInitials(session.name))+'</span>';
+}
+function renderSideUser(){
+  var isStaff = session.kind==="staff";
+  document.getElementById("sideUser").innerHTML =
+    (!isStaff && session.photo ? '<img class="side-avatar" src="'+esc(session.photo)+'" alt="" />' : "") +
+    "<b>"+esc(session.name)+"</b>" +
+    '<span class="role-badge'+(isStaff?"":" student")+'">'+(isStaff?esc(session.role):"Student")+"</span><br>" +
+    (isStaff ? esc(session.email) : "ID "+esc(session.studentId)+" · "+esc(session.section));
+}
+function renderProfileChip(){
+  document.getElementById("topAvatarWrap").innerHTML = avatarImgHtml("top-avatar","top-initials");
+  document.getElementById("topProfileName").textContent = session.name;
+}
+var PD_ICONS = {
+  photo:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
+  lock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>',
+  user:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-3.5 4.5-5 8-5s6.5 1.5 8 5"/></svg>',
+  logout:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 4h4v16h-4"/><path d="M10 8l-4 4 4 4"/><path d="M6 12h11"/></svg>'
+};
+function renderProfileDropdown(){
+  var isStaff = session.kind==="staff";
+  var sub = isStaff ? esc(session.email)+" · "+esc(session.role) : "ID "+esc(session.studentId)+" · "+esc(session.section);
+  var h = '<div class="pd-head">'+avatarImgHtml("","pd-initials")+'<div class="pd-name">'+esc(session.name)+'</div><div class="pd-sub">'+sub+'</div></div>';
+  if(!isStaff){
+    h += '<button class="pd-item" type="button" id="pdUpdatePhoto">'+PD_ICONS.photo+'Update Photo</button>';
+    h += '<button class="pd-item" type="button" id="pdChangePass">'+PD_ICONS.lock+'Change Password</button>';
+  }
+  h += '<button class="pd-item" type="button" id="pdAccountInfo">'+PD_ICONS.user+'Account Info</button>';
+  h += '<button class="pd-item danger" type="button" id="pdLogout">'+PD_ICONS.logout+'Logout</button>';
+  document.getElementById("profileDropdown").innerHTML = h;
+  var up=document.getElementById("pdUpdatePhoto");
+  if(up) up.addEventListener("click", function(){ closeProfileDropdown(); document.getElementById("photoUpdateInput").click(); });
+  var cp=document.getElementById("pdChangePass");
+  if(cp) cp.addEventListener("click", openChangePassword);
+  document.getElementById("pdAccountInfo").addEventListener("click", openAccountInfo);
+  document.getElementById("pdLogout").addEventListener("click", doLogout);
+}
+function closeProfileDropdown(){
+  document.getElementById("profileDropdown").classList.add("hidden");
+  document.getElementById("profileChip").setAttribute("aria-expanded","false");
+}
+document.getElementById("profileChip").addEventListener("click", function(e){
+  e.stopPropagation();
+  var dd=document.getElementById("profileDropdown");
+  var willOpen=dd.classList.contains("hidden");
+  dd.classList.toggle("hidden");
+  this.setAttribute("aria-expanded", willOpen?"true":"false");
+});
+document.addEventListener("click", function(e){
+  var dd=document.getElementById("profileDropdown");
+  if(!dd.classList.contains("hidden") && !e.target.closest(".profile-menu")) closeProfileDropdown();
+});
+document.getElementById("photoUpdateInput").addEventListener("change", function(){
+  var f=this.files && this.files[0];
+  this.value="";
+  if(!f) return;
+  compressPhoto(f, function(dataUrl){
+    if(!dataUrl){ toast("That photo could not be read. Please try another one."); return; }
+    var rec=null;
+    (db.students||[]).forEach(function(s){ if(s.id===session.id) rec=s; });
+    if(!rec){ toast("Your student record was not found."); return; }
+    rec.photo=dataUrl; session.photo=dataUrl;
+    if(!saveDb()){ toast("Storage is full — the photo could not be saved."); return; }
+    renderSideUser(); renderProfileChip(); renderProfileDropdown();
+    toast("Photo updated.");
+  });
+});
+function openChangePassword(){
+  closeProfileDropdown();
+  openModal(
+    "<h3>Change Password</h3><p class='sub'>Your new password must be at least 6 characters.</p>"+
+    "<form id='changePassForm' autocomplete='off'>"+
+    "<div class='field'><label for='cpCurrent'>Current Password</label><input id='cpCurrent' type='password' required /></div>"+
+    "<div class='field'><label for='cpNew'>New Password</label><input id='cpNew' type='password' required /></div>"+
+    "<div class='field'><label for='cpNew2'>Confirm New Password</label><input id='cpNew2' type='password' required /></div>"+
+    "<div id='changePassError'></div>"+
+    "<div class='modal-actions'><button class='btn gray' type='button' id='modalCancel'>Cancel</button><button class='btn' type='submit'>Save New Password</button></div>"+
+    "</form>"
+  );
+  document.getElementById("changePassForm").addEventListener("submit", function(e){
+    e.preventDefault();
+    var cur=document.getElementById("cpCurrent").value;
+    var nw=document.getElementById("cpNew").value;
+    var nw2=document.getElementById("cpNew2").value;
+    var rec=null;
+    (db.students||[]).forEach(function(s){ if(s.id===session.id) rec=s; });
+    if(!rec){ loginError("changePassError","Your student record was not found."); return; }
+    if(!rec.passHash || rec.passHash!==hashPassword(cur, rec.studentId)){ loginError("changePassError","Current password is incorrect."); return; }
+    if(!nw || nw.length<6){ loginError("changePassError","New password must be at least 6 characters."); return; }
+    if(nw!==nw2){ loginError("changePassError","New passwords do not match."); return; }
+    rec.passHash=hashPassword(nw, rec.studentId);
+    if(!saveDb()){ loginError("changePassError","Could not save. Please try again."); return; }
+    closeModal();
+    toast("Password changed.");
+  });
+}
+function openAccountInfo(){
+  closeProfileDropdown();
+  var isStaff = session.kind==="staff";
+  var rows = isStaff
+    ? "<b>Name:</b> "+esc(session.name)+"<br><b>Email:</b> "+esc(session.email)+"<br><b>Role:</b> "+esc(session.role)
+    : "<b>Name:</b> "+esc(session.name)+"<br><b>Student ID:</b> "+esc(session.studentId)+"<br><b>Section:</b> "+esc(session.section);
+  openModal("<h3>Account Info</h3><p class='sub'>Your TechVault account details.</p><p style='line-height:1.9'>"+rows+"</p><div class='modal-actions'><button class='btn' type='button' id='modalCancel'>Close</button></div>");
+}
 document.getElementById("backBtn").addEventListener("click", function(){
   if(navStack.length){ history.back(); }
 });
@@ -746,14 +886,9 @@ function enterApp(){
   closeDrawer();
   document.getElementById("loginView").classList.add("hidden");
   document.getElementById("appView").classList.remove("hidden");
-  var isStaff = session.kind==="staff";
-  document.getElementById("sideUser").innerHTML =
-    (!isStaff && session.photo ? '<img class="side-avatar" src="'+esc(session.photo)+'" alt="" />' : "") +
-    "<b>"+esc(session.name)+"</b>" +
-    '<span class="role-badge'+(isStaff?"":" student")+'">'+(isStaff?esc(session.role):"Student")+"</span><br>" +
-    (isStaff ? esc(session.email) : "ID "+esc(session.studentId)+" · "+esc(session.section));
-  document.getElementById("topWelcome").innerHTML =
-    "Welcome, "+esc(session.name)+"<small>"+(isStaff ? esc(session.email) : "Student · "+esc(session.section))+"</small>";
+  renderSideUser();
+  renderProfileChip();
+  renderProfileDropdown();
   currentPage="dashboard";
   navStack=[];
   try{ history.replaceState(null,"","#dashboard"); }catch(e){}
