@@ -451,6 +451,7 @@ function updateBackBtn(){
   if(b) b.classList.toggle("hidden", navStack.length===0);
 }
 function goTo(page){
+  if(page==="dashboard") dashShowInventory=false;
   var sb=document.getElementById("sidebar");
   if(sb.classList.contains("open")){
     // Neutralize the drawer history entry so Back never lands on an invisible step
@@ -497,6 +498,7 @@ window.addEventListener("hashchange", function(){
   render();
 });
 var dashSearch = "", dashCategory = "All";
+var dashShowInventory = false;
 
 function loadDb(){
   try{
@@ -919,6 +921,7 @@ function enterApp(){
   renderProfileDropdown();
   currentPage="dashboard";
   navStack=[];
+  dashShowInventory=false;
   try{ history.replaceState(null,"","#dashboard"); }catch(e){}
   render();
 }
@@ -966,8 +969,8 @@ function statsHtml(){
   var overdue=db.loans.filter(isOverdue).length;
   var avail=total-borrowed;
   return '<section class="stats">' +
-    statCard("blue", ICONS.box, total, "Total Items", "inventory") +
-    statCard("green", ICONS.check, avail, "Available", "inventory") +
+    statCard("blue", ICONS.box, total, "Total Items", null, "show-inventory") +
+    statCard("green", ICONS.check, avail, "Available", null, "show-inventory") +
     statCard("orange", ICONS.swap, borrowed, "Borrowed", "records") +
     statCard("red", ICONS.warn, overdue, "Overdue", "records") +
     "</section>";
@@ -979,15 +982,16 @@ function studentStatsHtml(){
   var myReturned=mine.filter(function(l){return l.status==="returned";}).length;
   var myOverdue=mine.filter(isOverdue).length;
   return '<section class="stats">' +
-    statCard("blue", ICONS.box, availTotal, "Available to Borrow") +
+    statCard("blue", ICONS.box, availTotal, "Available to Borrow", null, "show-inventory") +
     statCard("green", ICONS.check, myBorrowed, "My Borrowed", "myitems") +
     statCard("orange", ICONS.clock, myReturned, "My Returned", "myitems") +
     statCard("red", ICONS.warn, myOverdue, "My Overdue", "myitems") +
     "</section>";
 }
-function statCard(color, icon, num, lbl, page){
-  var click = page ? ' data-page="'+page+'" tabindex="0" role="button" aria-label="'+lbl+'"' : "";
-  return '<div class="stat '+color+(page?" clickable":"")+'"'+click+'><div class="ic">'+icon+'</div><div><div class="num">'+num+'</div><div class="lbl">'+lbl+"</div></div></div>";
+function statCard(color, icon, num, lbl, page, action){
+  var act = page ? ' data-page="'+page+'"' : (action ? ' data-action="'+action+'"' : "");
+  var click = (page || action) ? act+' tabindex="0" role="button" aria-label="'+lbl+'"' : "";
+  return '<div class="stat '+color+((page||action)?" clickable":"")+'"'+click+'><div class="ic">'+icon+'</div><div><div class="num">'+num+'</div><div class="lbl">'+lbl+"</div></div></div>";
 }
 function itemCard(item){
   var av=availableOf(item);
@@ -1033,7 +1037,7 @@ function loanRows(loans, labels){
 /* ---------------- pages ---------------- */
 function viewDashboard(){
   var head = session.kind==="staff" ? statsHtml() : studentStatsHtml();
-  return heroHtml() + head + inventoryPanel(true);
+  return heroHtml() + head + (dashShowInventory ? inventoryPanel(true) : "");
 }
 function viewInventory(){
   var rows = db.items.map(function(i){
@@ -1835,6 +1839,17 @@ function bindPage(){
     card.addEventListener("click", function(){ goTo(card.getAttribute("data-page")); });
     card.addEventListener("keydown", function(e){
       if(e.key==="Enter"||e.key===" "){ e.preventDefault(); goTo(card.getAttribute("data-page")); }
+    });
+  });
+  document.querySelectorAll('.stat.clickable[data-action="show-inventory"]').forEach(function(card){
+    var reveal=function(){
+      dashShowInventory=true; render();
+      var g=document.querySelector("#pageContent .grid");
+      if(g) g.scrollIntoView({behavior:"smooth", block:"start"});
+    };
+    card.addEventListener("click", reveal);
+    card.addEventListener("keydown", function(e){
+      if(e.key==="Enter"||e.key===" "){ e.preventDefault(); reveal(); }
     });
   });
   bindBorrowButtons(document);
