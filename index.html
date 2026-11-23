@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
 <meta name="color-scheme" content="light" />
 <link rel="icon" type="image/png" href="techvault-icon.png" />
 <title>TechVault — Electronics Laboratory Inventory System</title>
@@ -175,6 +175,8 @@
   .item-card img{width:100%;height:138px;object-fit:cover;background:#e8edf4}
   .photo-preview{display:block;max-width:100%;max-height:180px;border-radius:8px;margin-top:8px;object-fit:cover;background:#e8edf4}
   .photo-preview.hidden{display:none}
+  .remember{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--muted);margin:0 0 14px;cursor:pointer}
+  .remember input{width:17px;height:17px;accent-color:var(--navy);flex:none}
   .side-avatar{width:44px;height:44px;border-radius:50%;object-fit:cover;float:left;margin:2px 10px 2px 0;border:2px solid rgba(255,255,255,.35)}
   .pass-photo{width:110px;height:138px;object-fit:cover;border-radius:8px;border:2px solid var(--navy);display:block;margin:0 auto 12px}
   .guide-step{margin:0 0 22px}
@@ -272,6 +274,7 @@
         <label for="slPass">Password</label>
         <input id="slPass" type="password" placeholder="Enter your password" required />
       </div>
+      <label class="remember"><input type="checkbox" id="slRemember" /> Remember me</label>
       <button class="btn block" type="submit">Sign in as Student</button>
       <p class="hint" style="text-align:center;margin-top:12px">New student? <a href="#" id="toRegisterLink">Register here</a></p>
       <p class="hint" style="text-align:center;margin-top:8px"><a href="#" id="toGuideLink">How to use TechVault</a></p>
@@ -678,6 +681,8 @@ studentForm.addEventListener("submit", function(e){
   if(found.passHash !== hashPassword(pw, found.studentId)){ loginError("studentLoginError","Incorrect password."); return; }
   loginError("studentLoginError","");
   session={kind:"student", id:found.id, name:found.name, studentId:found.studentId, section:found.section, photo:found.photo||""};
+  if(document.getElementById("slRemember").checked){ try{ localStorage.setItem("electrostock_session_v1", JSON.stringify({kind:"student", id:found.id})); }catch(e){} }
+  else { try{ localStorage.removeItem("electrostock_session_v1"); }catch(e){} }
   enterApp();
 });
 registerForm.addEventListener("submit", function(e){
@@ -717,7 +722,7 @@ staffForm.addEventListener("submit", function(e){
   db.staff.forEach(function(s){ if(s.email.toLowerCase()===email) found=s; });
   if(!found){ loginError("staffLoginError","That EVSU email is not registered as a lab staff account."); return; }
   loginError("staffLoginError","");
-  session={kind:"staff", id:found.id, name:found.name, role:found.role, email:found.email};
+  session={kind:"staff", id:found.id, name:found.name, role:found.role, email:found.email, photo:found.photo||""};
   enterApp();
 });
 function doLogout(){
@@ -725,6 +730,7 @@ function doLogout(){
   closeDrawer();
   closeProfileDropdown();
   session=null; currentPage="dashboard"; navStack=[];
+  try{ localStorage.removeItem("electrostock_session_v1"); }catch(e){}
   document.getElementById("appView").classList.add("hidden");
   document.getElementById("loginView").classList.remove("hidden");
   registerForm.classList.add("hidden");
@@ -744,13 +750,13 @@ function profileInitials(name){
   return ((parts[0]||"?")[0] + (parts.length>1 ? parts[parts.length-1][0] : "")).toUpperCase();
 }
 function avatarImgHtml(imgCls, initCls){
-  if(session.kind!=="staff" && session.photo) return '<img class="'+imgCls+'" src="'+esc(session.photo)+'" alt="" />';
+  if(session.photo) return '<img class="'+imgCls+'" src="'+esc(session.photo)+'" alt="" />';
   return '<span class="'+initCls+'">'+esc(profileInitials(session.name))+'</span>';
 }
 function renderSideUser(){
   var isStaff = session.kind==="staff";
   document.getElementById("sideUser").innerHTML =
-    (!isStaff && session.photo ? '<img class="side-avatar" src="'+esc(session.photo)+'" alt="" />' : "") +
+    (session.photo ? '<img class="side-avatar" src="'+esc(session.photo)+'" alt="" />' : "") +
     "<b>"+esc(session.name)+"</b>" +
     '<span class="role-badge'+(isStaff?"":" student")+'">'+(isStaff?esc(session.role):"Student")+"</span><br>" +
     (isStaff ? esc(session.email) : "ID "+esc(session.studentId)+" · "+esc(session.section));
@@ -769,8 +775,8 @@ function renderProfileDropdown(){
   var isStaff = session.kind==="staff";
   var sub = isStaff ? esc(session.email)+" · "+esc(session.role) : "ID "+esc(session.studentId)+" · "+esc(session.section);
   var h = '<div class="pd-head">'+avatarImgHtml("","pd-initials")+'<div class="pd-name">'+esc(session.name)+'</div><div class="pd-sub">'+sub+'</div></div>';
+  h += '<button class="pd-item" type="button" id="pdUpdatePhoto">'+PD_ICONS.photo+'Update Photo</button>';
   if(!isStaff){
-    h += '<button class="pd-item" type="button" id="pdUpdatePhoto">'+PD_ICONS.photo+'Update Photo</button>';
     h += '<button class="pd-item" type="button" id="pdChangePass">'+PD_ICONS.lock+'Change Password</button>';
   }
   h += '<button class="pd-item" type="button" id="pdAccountInfo">'+PD_ICONS.user+'Account Info</button>';
@@ -805,8 +811,9 @@ document.getElementById("photoUpdateInput").addEventListener("change", function(
   compressPhoto(f, function(dataUrl){
     if(!dataUrl){ toast("That photo could not be read. Please try another one."); return; }
     var rec=null;
-    (db.students||[]).forEach(function(s){ if(s.id===session.id) rec=s; });
-    if(!rec){ toast("Your student record was not found."); return; }
+    if(session.kind==="staff"){ (db.staff||[]).forEach(function(s){ if(s.id===session.id) rec=s; }); }
+    else { (db.students||[]).forEach(function(s){ if(s.id===session.id) rec=s; }); }
+    if(!rec){ toast("Your account record was not found."); return; }
     rec.photo=dataUrl; session.photo=dataUrl;
     if(!saveDb()){ toast("Storage is full — the photo could not be saved."); return; }
     renderSideUser(); renderProfileChip(); renderProfileDropdown();
@@ -1028,7 +1035,7 @@ function viewInventory(){
       '<td data-l="Available">'+(av<=0?'<span class="pill red">0 — out of stock</span>':av)+"</td>" +
       '<td data-l="Actions"><div class="row-actions">' +
         '<button class="btn small gray" type="button" data-edit-item="'+i.id+'">Edit</button>' +
-        '<button class="btn small" type="button" data-share-item="'+i.id+'">Share QR</button>' +
+        '<button class="btn small" type="button" data-share-item="'+i.id+'">QR</button>' +
         '<button class="btn small red" type="button" data-del-item="'+i.id+'">Delete</button>' +
       "</div></td></tr>";
   }).join("");
@@ -1134,14 +1141,14 @@ function viewUsers(){
       '<td data-l="Actions"><button class="btn small red" type="button" data-del-student="'+s.id+'">Remove</button></td></tr>';
   }).join("");
   var staffRows=db.staff.map(function(s){
-    return "<tr><td data-l='Name'><b>"+esc(s.name)+"</b></td><td data-l='Email'>"+esc(s.email)+"</td><td data-l='Role'><span class='pill blue'>"+esc(s.role)+"</span></td>" +
+    return "<tr><td data-l='Photo'>"+(s.photo?'<img class="user-thumb" src="'+esc(s.photo)+'" alt="" />':"—")+"</td><td data-l='Name'><b>"+esc(s.name)+"</b></td><td data-l='Email'>"+esc(s.email)+"</td><td data-l='Role'><span class='pill blue'>"+esc(s.role)+"</span></td>" +
       '<td data-l="Actions"><button class="btn small red" type="button" data-del-staff="'+s.id+'">Remove</button></td></tr>';
   }).join("");
   return '<section class="panel"><div class="panel-head"><h3>'+ICONS.gear+' Students</h3><div class="spacer"></div><button class="btn" type="button" id="addStudentBtn">+ Add Student</button></div>' +
     '<div style="overflow-x:auto"><table class="resp"><thead><tr><th>Photo</th><th>Name</th><th>Student ID</th><th>Section</th><th>Role</th><th>Actions</th></tr></thead><tbody>'+studentRows+"</tbody></table></div></section>" +
     '<section class="panel"><div class="panel-head"><h3>Lab Staff</h3><div class="spacer"></div><span class="note">'+db.staff.length+" of 3 staff accounts registered</span>" +
     '<button class="btn" type="button" id="addStaffBtn" '+(db.staff.length>=3?'disabled style="opacity:.5"':"")+">+ Add Staff</button></div>" +
-    '<div style="overflow-x:auto"><table class="resp"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Actions</th></tr></thead><tbody>'+staffRows+"</tbody></table></div></section>";
+    '<div style="overflow-x:auto"><table class="resp"><thead><tr><th>Photo</th><th>Name</th><th>Email</th><th>Role</th><th>Actions</th></tr></thead><tbody>'+staffRows+"</tbody></table></div></section>";
 }
 function viewReports(){
   var byCat={}; CATEGORIES.forEach(function(c){ byCat[c]={units:0,kinds:0}; });
@@ -1892,6 +1899,18 @@ function bindPage(){
   var scanStart=document.getElementById("scanStartBtn");
   if(scanStart) scanStart.addEventListener("click", startScanner);
 }
+
+/* ---------------- remembered session (Remember Me) ---------------- */
+(function restoreSession(){
+  var saved=null;
+  try{ saved=JSON.parse(localStorage.getItem("electrostock_session_v1")||"null"); }catch(e){ saved=null; }
+  if(!saved || saved.kind!=="student" || !saved.id) return;
+  var found=null;
+  (db.students||[]).forEach(function(s){ if(s.id===saved.id) found=s; });
+  if(!found || !found.passHash){ try{ localStorage.removeItem("electrostock_session_v1"); }catch(e){} return; }
+  session={kind:"student", id:found.id, name:found.name, studentId:found.studentId, section:found.section, photo:found.photo||""};
+  enterApp();
+})();
 </script>
 </body>
 </html>
