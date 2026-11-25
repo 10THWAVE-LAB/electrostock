@@ -531,10 +531,14 @@ function compressPhoto(file, done){
 }
 
 /* ---------- Google sign-in ---------- */
+var googleTries = 0;
 function initGoogle(){
   if(googleReady) return;
   if(!GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID.indexOf("HERE") !== -1) return;
-  if(!window.google || !google.accounts || !google.accounts.id) return;
+  if(!window.google || !google.accounts || !google.accounts.id){
+    if(googleTries < 15){ googleTries++; setTimeout(initGoogle, 1000); }
+    return;
+  }
   googleReady = true;
   google.accounts.id.initialize({client_id: GOOGLE_CLIENT_ID, callback: handleGoogle});
   var wrap = document.getElementById("googleBtnWrap");
@@ -631,7 +635,13 @@ function initV2(){
   var gb = document.getElementById("googleBtn");
   if(gb) gb.addEventListener("click", function(){
     if(!GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID.indexOf("HERE") !== -1){ toast("Google sign-in is being set up — please use email sign-up for now."); return; }
-    toast("Opening Google sign-in...");
+    if(window.google && google.accounts && google.accounts.id){
+      initGoogle();
+      google.accounts.id.prompt();
+    } else {
+      initGoogle();
+      toast("Loading Google sign-in, please try again in a moment...");
+    }
   });
   document.getElementById("dashLogout").addEventListener("click", logout);
   document.getElementById("dashChangePhoto").addEventListener("click", function(){ document.getElementById("dashPhoto").click(); });
@@ -665,7 +675,6 @@ function initV2(){
   });
   renderAuthBox();
   initGoogle();
-  setTimeout(initGoogle, 1500);
   if("serviceWorker" in navigator){ navigator.serviceWorker.register("sw.js").catch(function(){}); }
   var sp = document.getElementById("splash");
   setTimeout(function(){
