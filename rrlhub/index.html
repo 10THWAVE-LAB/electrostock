@@ -828,6 +828,13 @@ async function fbIdToken(){
     return await u.getIdToken();
   }catch(e){ return null; }
 }
+var fbReauthTried = false;
+function fbReconnectGoogle(){
+  if(fbReauthTried) return;
+  fbReauthTried = true;
+  if(!window.google || !google.accounts || !google.accounts.id) return;
+  try{ google.accounts.id.prompt(); }catch(e){}
+}
 var LS_REVIEWS = "rrlhub_reviews_v1";
 var LS_INSTALLS = "rrlhub_installs_v1";
 var selectedRating = 0;
@@ -897,7 +904,7 @@ function paintActive(res){
   var el = document.getElementById("activeList");
   if(el){
     if(!isAdmin()){ el.innerHTML = '<p class="muted">Only the owner can see who is online.</p>'; }
-    else if(needsGoogle){ el.innerHTML = '<p class="muted">Sign in with Google to see who is online.</p>'; }
+    else if(needsGoogle){ el.innerHTML = '<p class="muted">Sign in with Google to see who is online.</p><button type="button" class="btn-ghost" id="reconnectGoogleBtn">Reconnect with Google</button>'; var rb = document.getElementById("reconnectGoogleBtn"); if(rb) rb.addEventListener("click", function(){ openAuth("login", "Reconnect with Google to see who is online."); }); }
     else if(!list.length){ el.innerHTML = '<p class="muted">No one is online right now.</p>'; }
     else{
       el.innerHTML = "";
@@ -917,7 +924,9 @@ function paintActive(res){
 }
 async function refreshActive(){
   if(!currentUser()) return;
-  paintActive(await loadActive());
+  var res = await loadActive();
+  paintActive(res);
+  if(res.needsGoogle && currentUser() && currentUser().provider === "google") fbReconnectGoogle();
 }
 function startPresence(){
   stopPresence(false);
