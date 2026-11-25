@@ -170,6 +170,11 @@
   .pill.green{background:#e7f6ec;color:#14743a}
   .pill.orange{background:#fdeeda;color:#a35400}
   .pill.red{background:#fdecea;color:#a11d13}
+.overdue-alert{border:2px solid #d92d20;background:#fff5f5}
+.overdue-alert .panel-head h3{color:#a11d13}
+.overdue-alert ul{list-style:none;margin:0;padding:0}
+.overdue-alert li{padding:8px 0;border-bottom:1px dashed var(--line);font-size:14px}
+.overdue-alert li:last-child{border-bottom:0}
   .pill.gray{background:#edf1f6;color:var(--muted)}
   .empty{padding:26px;text-align:center;color:var(--muted)}
   .row-actions{display:flex;gap:6px;flex-wrap:wrap}
@@ -1118,9 +1123,31 @@ function loanRows(loans, labels){
 }
 
 /* ---------------- pages ---------------- */
+function daysOverdue(loan){
+  var d1=new Date(loan.returnDate+"T00:00:00");
+  var d0=new Date(todayStr()+"T00:00:00");
+  return Math.max(0, Math.round((d0-d1)/86400000));
+}
+function overdueAlertHtml(){
+  var mine=session.kind==="staff"
+    ? db.loans.filter(isOverdue)
+    : db.loans.filter(function(l){ return isOverdue(l) && l.borrower===session.name; });
+  if(!mine.length) return "";
+  var rows=mine.map(function(l){
+    var d=daysOverdue(l);
+    return "<li><b>"+esc(l.borrower)+"</b> \u2014 "+esc(l.itemName)+
+      " \u00b7 due "+fmtDate(l.returnDate)+
+      " \u00b7 <span class='pill red'>"+d+(d===1?" day":" days")+" overdue</span></li>";
+  }).join("");
+  var title=session.kind==="staff"
+    ? "Overdue items ("+mine.length+")"
+    : "You have overdue items ("+mine.length+")";
+  return "<section class='panel overdue-alert'><div class='panel-head'><h3>"+title+"</h3></div>" +
+    "<p class='sub'>Please return these items to the laboratory as soon as possible.</p><ul>"+rows+"</ul></section>";
+}
 function viewDashboard(){
   var head = session.kind==="staff" ? statsHtml() : studentStatsHtml();
-  return heroHtml() + head + (dashShowInventory ? inventoryPanel(true) : "");
+  return heroHtml() + overdueAlertHtml() + head + (dashShowInventory ? inventoryPanel(true) : "");
 }
 function viewInventory(){
   var rows = db.items.map(function(i){
@@ -1467,6 +1494,7 @@ function stopScanner(){
 function viewScanQR(){
   return '<section class="panel"><div class="panel-head"><h3>'+ICONS.qr+' Scan QR</h3></div>' +
     "<p class='sub' style='text-align:center'>Point the camera at a student's borrow or return QR code, or an item QR code shared by lab staff.</p>" +
+    "<p class='sub' style='text-align:center'>Tip: hold the phone steady about 15\u201320 cm away, in good light, and keep the QR code flat and glare-free.</p>" +
     '<video id="scanVideo" class="scan-video" playsinline muted></video>' +
     '<canvas id="scanCanvas" class="hidden"></canvas>' +
     '<p class="scan-status" id="scanStatus">Camera is off.</p>' +
@@ -1477,6 +1505,7 @@ function viewScanQR(){
 function viewScanItem(){
   return '<section class="panel"><div class="panel-head"><h3>'+ICONS.qr+' Scan QR</h3></div>' +
     "<p class='sub' style='text-align:center'>Point the camera at an item QR code shared by lab staff, or a confirmation QR shown by staff at the counter.</p>" +
+    "<p class='sub' style='text-align:center'>Tip: hold the phone steady about 15\u201320 cm away, in good light, and keep the QR code flat and glare-free.</p>" +
     '<video id="scanVideo" class="scan-video" playsinline muted></video>' +
     '<canvas id="scanCanvas" class="hidden"></canvas>' +
     '<p class="scan-status" id="scanStatus">Camera is off.</p>' +
@@ -1495,6 +1524,11 @@ function bindScanAgain(){
   var b=document.getElementById("scanAgainBtn");
   if(b) b.addEventListener("click", function(){ render(); });
 }
+function requestCamera(){
+  var hi={video:{facingMode:"environment", width:{ideal:1280}, height:{ideal:720}}, audio:false};
+  var lo={video:{facingMode:"environment"}, audio:false};
+  return navigator.mediaDevices.getUserMedia(hi).catch(function(){ return navigator.mediaDevices.getUserMedia(lo); });
+}
 function startScanner(){
   var result=document.getElementById("scanResult");
   if(result) result.innerHTML="";
@@ -1504,7 +1538,7 @@ function startScanner(){
     return;
   }
   scanStatus("Starting camera…");
-  navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}, audio:false}).then(function(stream){
+  requestCamera().then(function(stream){
     scanStream=stream;
     var video=document.getElementById("scanVideo");
     if(!video){ stopScanner(); return; }
