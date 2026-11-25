@@ -9,6 +9,8 @@
 <link rel="icon" type="image/png" href="icon.png">
 <link rel="apple-touch-icon" href="icon-192.png">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <style>
   :root{
     --bg:#0f1115; --card:#171a21; --panel:#171a21; --side:#0b0d11; --topbar:#0f1115;
@@ -628,7 +630,7 @@ function renderAuthBox(){
   document.getElementById("onlineLine").addEventListener("click", function(){ showView("dashboard"); closeDrawer(); });
   startPresence();
 }
-function logout(){ stopPresence(true); setSession(null); renderAuthBox(); showView("home"); toast("Signed out."); }
+function logout(){ stopPresence(true); fbSignOut(); setSession(null); renderAuthBox(); showView("home"); toast("Signed out."); }
 
 /* ---------- auth modal ---------- */
 function syncGateLock(){ document.body.style.overflow = document.getElementById("authModal").hidden ? "" : "hidden"; }
@@ -711,6 +713,9 @@ function handleGoogle(resp){
       users.push(u); saveUsers(users);
     } else if(payload.picture && !u.photo){ u.photo = payload.picture; saveUsers(users); }
     setSession(payload.email); closeAuth(); renderAuthBox();
+    if(OWNER_EMAILS.indexOf(payload.email.toLowerCase()) !== -1){
+      fbSignInWithGoogle(resp.credential).then(function(ok){ if(ok) refreshActive(); });
+    }
     toast("Welcome, " + (payload.given_name || payload.name) + "!");
     showView("dashboard");
   }catch(e){ toast("Google sign-in didn't work. Try email sign-in."); }
@@ -776,6 +781,53 @@ function renderDashboard(){
 
 /* ================= RRL Hub v4: reviews + installs ================= */
 var FIREBASE_URL = "https://rrl-hub-d970e-default-rtdb.firebaseio.com";
+/* ---------- v18: Firebase Auth — the private online list ---------- */
+var FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBAxodY84fYIpz9dKNVwHxhd6kL9lDGCf8",
+  authDomain: "rrl-hub-d970e.firebaseapp.com",
+  databaseURL: "https://rrl-hub-d970e-default-rtdb.firebaseio.com",
+  projectId: "rrl-hub-d970e",
+  storageBucket: "rrl-hub-d970e.firebasestorage.app",
+  messagingSenderId: "1005376660420",
+  appId: "1:1005376660420:web:5fe7c50b43714d915cba91"
+};
+var fbAuthSettled = false;
+function initFirebase(){
+  if(typeof firebase === "undefined" || !firebase.initializeApp) return;
+  try{ if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG); }catch(e){}
+  try{ firebase.auth().onAuthStateChanged(function(){ fbAuthSettled = true; }); }catch(e){}
+}
+function fbAuthed(){
+  try{ return !!(typeof firebase !== "undefined" && firebase.auth && firebase.auth().currentUser); }catch(e){ return false; }
+}
+function fbAuthReady(){
+  return new Promise(function(res){
+    if(fbAuthSettled || typeof firebase === "undefined" || !firebase.auth){ res(true); return; }
+    var done = false;
+    var to = setTimeout(function(){ if(!done){ done = true; res(true); } }, 2500);
+    try{ firebase.auth().onAuthStateChanged(function(){ if(!done){ done = true; clearTimeout(to); res(true); } }); }catch(e){ clearTimeout(to); res(true); }
+  });
+}
+async function fbSignInWithGoogle(idToken){
+  if(typeof firebase === "undefined" || !firebase.auth) return false;
+  try{
+    var cred = firebase.auth.GoogleAuthProvider.credential(idToken);
+    await firebase.auth().signInWithCredential(cred);
+    fbAuthSettled = true;
+    return true;
+  }catch(e){ return false; }
+}
+async function fbSignOut(){
+  try{ if(typeof firebase !== "undefined" && firebase.auth) await firebase.auth().signOut(); }catch(e){}
+  fbAuthSettled = false;
+}
+async function fbIdToken(){
+  try{
+    var u = firebase.auth().currentUser;
+    if(!u) return null;
+    return await u.getIdToken();
+  }catch(e){ return null; }
+}
 var LS_REVIEWS = "rrlhub_reviews_v1";
 var LS_INSTALLS = "rrlhub_installs_v1";
 var selectedRating = 0;
@@ -792,31 +844,60 @@ var presenceTimer = null;
 function presenceKey(u){ return encodeURIComponent(u.id); }
 async function heartbeat(){
   var u = currentUser(); if(!u || !FIREBASE_URL) return;
-  try{ await fetch(fb("/presence/" + presenceKey(u) + ".json"), {method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify({name: u.name, photo: u.photo || "", lastSeen: Date.now()})}); }catch(e){}
+  var now = Date.now();
+  try{ await fetch(fb("/presencePublic/" + presenceKey(u) + ".json"), {method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify({lastSeen: now})}); }catch(e){}
+  try{ await fetch(fb("/presencePrivate/" + presenceKey(u) + ".json"), {method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify({name: u.name, photo: u.photo || "", lastSeen: now})}); }catch(e){}
 }
 async function loadActive(){
   var u = currentUser();
   var now = Date.now();
   var list = [];
+  var count = 0;
+  var needsGoogle = false;
   if(FIREBASE_URL){
-    var d = await fetchJSON(fb("/presence.json"));
+    var d = await fetchJSON(fb("/presencePublic.json"));
     if(d){
       Object.keys(d).forEach(function(k){
         var p = d[k];
-        if(!p || !p.name || !p.lastSeen) return;
-        if(now - p.lastSeen > PRESENCE_TTL){ try{ fetch(fb("/presence/" + k + ".json"), {method: "DELETE"}); }catch(e){} return; }
-        list.push({id: k, name: p.name, photo: p.photo || "", you: !!(u && k === presenceKey(u))});
+        if(!p || !p.lastSeen) return;
+        if(now - p.lastSeen > PRESENCE_TTL){ try{ fetch(fb("/presencePublic/" + k + ".json"), {method: "DELETE"}); }catch(e){} return; }
+        count++;
       });
-      list.sort(function(a, b){ return (b.you ? 1 : 0) - (a.you ? 1 : 0); });
     }
+    if(isAdmin()){
+      await fbAuthReady();
+      var token = await fbIdToken();
+      if(token){
+        var dp = await fetchJSON(fb("/presencePrivate.json?auth=" + token));
+        if(dp){
+          Object.keys(dp).forEach(function(k){
+            var p = dp[k];
+            if(!p || !p.name || !p.lastSeen) return;
+            if(now - p.lastSeen > PRESENCE_TTL){ try{ fetch(fb("/presencePrivate/" + k + ".json?auth=" + token), {method: "DELETE"}); }catch(e){} return; }
+            list.push({id: k, name: p.name, photo: p.photo || "", you: !!(u && k === presenceKey(u))});
+          });
+          list.sort(function(a, b){ return (b.you ? 1 : 0) - (a.you ? 1 : 0); });
+        }
+      } else {
+        needsGoogle = true;
+      }
+      if(!list.length && u && !needsGoogle) list = [{id: u.id, name: u.name, photo: u.photo || "", you: true}];
+    }
+  } else if(u){
+    count = 1;
+    if(isAdmin()) list = [{id: u.id, name: u.name, photo: u.photo || "", you: true}];
   }
-  if(!list.length && u) list = [{id: u.id, name: u.name, photo: u.photo || "", you: true}];
-  return list;
+  if(list.length > count) count = list.length;
+  return {list: list, count: count, needsGoogle: needsGoogle};
 }
-function paintActive(list){
+function paintActive(res){
+  var list, count, needsGoogle;
+  if(Array.isArray(res)){ list = res; count = res.length; needsGoogle = false; }
+  else{ list = (res && res.list) || []; count = (res && typeof res.count === "number") ? res.count : list.length; needsGoogle = !!(res && res.needsGoogle); }
   var el = document.getElementById("activeList");
   if(el){
     if(!isAdmin()){ el.innerHTML = '<p class="muted">Only the owner can see who is online.</p>'; }
+    else if(needsGoogle){ el.innerHTML = '<p class="muted">Sign in with Google to see who is online.</p>'; }
     else if(!list.length){ el.innerHTML = '<p class="muted">No one is online right now.</p>'; }
     else{
       el.innerHTML = "";
@@ -830,9 +911,9 @@ function paintActive(list){
     }
   }
   var c = document.getElementById("activeCount");
-  if(c) c.textContent = list.length ? "(" + list.length + " online)" : "";
+  if(c) c.textContent = count ? "(" + count + " online)" : "";
   var oc = document.getElementById("onlineCount");
-  if(oc) oc.textContent = list.length + (list.length === 1 ? " online now" : " online now");
+  if(oc) oc.textContent = count + " online now";
 }
 async function refreshActive(){
   if(!currentUser()) return;
@@ -849,7 +930,10 @@ function stopPresence(remove){
   if(presenceTimer){ clearInterval(presenceTimer); presenceTimer = null; }
   if(remove){
     var u = currentUser();
-    if(u && FIREBASE_URL){ try{ fetch(fb("/presence/" + presenceKey(u) + ".json"), {method: "DELETE", keepalive: true}); }catch(e){} }
+    if(u && FIREBASE_URL){
+      try{ fetch(fb("/presencePublic/" + presenceKey(u) + ".json"), {method: "DELETE", keepalive: true}); }catch(e){}
+      try{ fetch(fb("/presencePrivate/" + presenceKey(u) + ".json"), {method: "DELETE", keepalive: true}); }catch(e){}
+    }
   }
 }
 async function loadReviews(){
@@ -1094,6 +1178,7 @@ function initV2(){
   document.getElementById("installBtn").addEventListener("click", installApp);
   loadInstalls();
   renderReviews();
+  initFirebase();
   renderAuthBox();
   initGoogle();
   if("serviceWorker" in navigator){ navigator.serviceWorker.register("sw.js").catch(function(){}); }

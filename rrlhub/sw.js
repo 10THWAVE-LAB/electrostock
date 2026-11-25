@@ -1,4 +1,4 @@
-const CACHE = "rrlhub-v8";
+const CACHE = "rrlhub-v9";
 const ASSETS = ["./", "./index.html", "./manifest.json", "./icon.png", "./icon-192.png", "./icon-512.png"];
 self.addEventListener("install", function(e){
   e.waitUntil(caches.open(CACHE).then(function(c){ return c.addAll(ASSETS); }).then(function(){ return self.skipWaiting(); }));
