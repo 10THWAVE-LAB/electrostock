@@ -100,7 +100,7 @@
   .splash-title span{color:#5eead4}
   .splash-sub{font-size:14px;color:#9aa3b0;margin-top:4px}
   .splash-bar{width:180px;height:4px;background:rgba(255,255,255,.25);border-radius:99px;margin:18px auto 0;overflow:hidden}
-  .splash-bar i{display:block;height:100%;width:0;background:#5eead4;border-radius:99px;animation:splashBar 1.1s ease forwards}
+  .splash-bar i{display:block;height:100%;width:0;background:#5eead4;border-radius:99px;animation:splashBar .8s ease forwards}
   @keyframes splashBar{to{width:100%}}
   /* ---------- v2: card entrance + star ---------- */
   @keyframes cardIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
@@ -130,6 +130,7 @@
   .field input{width:100%;border:1.5px solid var(--line);border-radius:8px;padding:10px 12px;font-size:15px;box-sizing:border-box;background:var(--input);color:var(--ink)}
   .field input:focus{outline:2px solid var(--blue);outline-offset:0;border-color:var(--blue)}
   .btn-primary{width:100%;background:var(--blue);color:var(--btn-text);border:0;border-radius:8px;padding:12px;font-size:15px;font-weight:700;cursor:pointer}
+  .btn-primary:disabled{opacity:.6;cursor:wait}
   .btn-secondary{width:100%;background:var(--card);color:var(--ink);border:1.5px solid var(--line);border-radius:8px;padding:11px;font-size:15px;font-weight:700;cursor:pointer;margin-top:8px}
   .google-btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;background:var(--card);border:1.5px solid var(--line);border-radius:8px;padding:11px;font-size:15px;font-weight:600;cursor:pointer;color:var(--ink)}
   .google-btn svg{width:18px;height:18px;flex:none}
@@ -537,7 +538,7 @@ function renderCats(){
     b2.type = "button";
     b2.innerHTML = CAT_ICONS[c] + "<span>" + c + "</span>";
     if(c === activeCat) b2.className = "on";
-    b2.addEventListener("click", function(){ activeCat = c; renderCats(); render(); closeDrawer(); });
+    b2.addEventListener("click", function(){ activeCat = c; renderCats(); render(); showView("home"); closeDrawer(); });
     side.appendChild(b2);
   });
 }
@@ -572,6 +573,12 @@ function currentUser(){
   var s = getSession(); if(!s) return null;
   var found = loadUsers().filter(function(x){ return x.email === s.email; });
   return found[0] || null;
+}
+/* ---------- v16: only the owner sees WHO is online ---------- */
+var OWNER_EMAILS = ["pampamindino@gmail.com", "justin.bardiago@evsu.edu.ph"];
+function isAdmin(){
+  var u = currentUser();
+  return !!(u && u.email && OWNER_EMAILS.indexOf(u.email.toLowerCase()) !== -1);
 }
 function val(id){ return document.getElementById(id).value.trim(); }
 
@@ -631,6 +638,7 @@ function openAuth(mode, note){
   document.getElementById("authRegister").hidden = mode !== "register";
   if(note){ document.querySelector("#authLogin .sub").textContent = note; }
   else { document.querySelector("#authLogin .sub").textContent = "Sign in to RRL Hub to save favorites & searches."; }
+  var go = document.getElementById("rgGo"); if(go){ go.disabled = false; go.textContent = "Create account"; }
   syncGateLock();
 }
 function closeAuth(){ if(!currentUser()) return; document.getElementById("authModal").hidden = true; syncGateLock(); }
@@ -808,7 +816,8 @@ async function loadActive(){
 function paintActive(list){
   var el = document.getElementById("activeList");
   if(el){
-    if(!list.length){ el.innerHTML = '<p class="muted">No one is online right now.</p>'; }
+    if(!isAdmin()){ el.innerHTML = '<p class="muted">Only the owner can see who is online.</p>'; }
+    else if(!list.length){ el.innerHTML = '<p class="muted">No one is online right now.</p>'; }
     else{
       el.innerHTML = "";
       list.forEach(function(p){
@@ -1020,7 +1029,9 @@ function initV2(){
   document.getElementById("rgGo").addEventListener("click", doRegister);
   document.getElementById("rgPhoto").addEventListener("change", function(){
     var f = this.files && this.files[0]; if(!f) return;
-    compressPhoto(f, function(data){ regPhotoData = data; document.getElementById("rgPhotoPrev").src = data; });
+    var go = document.getElementById("rgGo");
+    go.disabled = true; go.textContent = "Loading photo\u2026";
+    compressPhoto(f, function(data){ regPhotoData = data; document.getElementById("rgPhotoPrev").src = data; go.disabled = false; go.textContent = "Create account"; });
   });
   var gb = document.getElementById("googleBtn");
   if(gb) gb.addEventListener("click", function(){
@@ -1090,8 +1101,8 @@ function initV2(){
   setTimeout(function(){
     if(!sp) return;
     sp.classList.add("done");
-    setTimeout(function(){ if(sp.parentNode) sp.parentNode.removeChild(sp); }, 550);
-  }, 1200);
+    setTimeout(function(){ if(sp.parentNode) sp.parentNode.removeChild(sp); }, 400);
+  }, 800);
 }
 renderCats();
 render();
