@@ -333,6 +333,7 @@
       <div id="dashProfile"></div>
       <div class="dash-actions">
         <button type="button" class="btn-green" id="dashChangePhoto">Change photo</button>
+        <button type="button" class="btn-green" id="dashChangeName">Change name</button>
         <button type="button" class="btn-green" id="dashChangePass">Change password</button>
         <button type="button" class="btn-green ghost" id="dashLogout">Log out</button>
         <input id="dashPhoto" type="file" accept="image/*" hidden>
@@ -343,6 +344,11 @@
         <div class="field"><label>Confirm new password</label><input id="pwNew2" type="password"></div>
         <p class="err" id="pwErr"></p>
         <button type="button" class="btn-primary" id="pwSave">Save new password</button>
+      </div>
+      <div class="pw-box" id="nameBox" hidden>
+        <div class="field"><label>Display name</label><input id="nameNew" type="text" maxlength="60"></div>
+        <p class="err" id="nameErr"></p>
+        <button type="button" class="btn-primary" id="nameSave">Save name</button>
       </div>
       <div class="dash-grid" id="dashStats"></div>
       <h3 class="sec-title">Active now <span class="muted" id="activeCount"></span></h3>
@@ -372,7 +378,7 @@
         <p>Your account, favorites, and searches are stored only on your device. Reviews you post (your name, photo, rating, and comment) are shared with other users so everyone can read them. Read our <a href="privacy.html">Privacy Policy</a>.</p>
         <h2>Note</h2>
         <p>RRL Hub is free to use. The research sites linked here belong to their respective owners; RRL Hub only links to them. Always cite the sources you use.</p>
-        <p class="credit">Made by Justin M. Bardiago. &middot; Version 18.3</p>
+        <p class="credit">Made by Justin M. Bardiago. &middot; Version 18.4</p>
       </section>
     </div>
     <div id="view-reviews" hidden>
@@ -1158,6 +1164,27 @@ function initV2(){
     err.textContent = "";
     document.getElementById("pwBox").hidden = true;
     toast("Password changed.");
+  });
+  document.getElementById("dashChangeName").addEventListener("click", function(){
+    var box = document.getElementById("nameBox");
+    box.hidden = !box.hidden;
+    if(!box.hidden){
+      var u = currentUser(); if(u) document.getElementById("nameNew").value = u.name;
+      document.getElementById("nameNew").focus();
+    }
+  });
+  document.getElementById("nameSave").addEventListener("click", function(){
+    var u = currentUser(); if(!u) return;
+    var nw = document.getElementById("nameNew").value.trim();
+    var err = document.getElementById("nameErr");
+    if(nw.length < 2) return err.textContent = "Please enter a name with at least 2 characters.";
+    var users = loadUsers();
+    users.forEach(function(x){ if(x.email === u.email) x.name = nw; });
+    saveUsers(users);
+    err.textContent = "";
+    document.getElementById("nameBox").hidden = true;
+    renderDashboard(); renderAuthBox();
+    toast("Name updated.");
   });
   var savedTheme = "dark";
   try{ savedTheme = localStorage.getItem("rrlhub_theme_v1") || "dark"; }catch(e){}
