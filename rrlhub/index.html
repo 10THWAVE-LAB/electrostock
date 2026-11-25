@@ -172,6 +172,33 @@
   [hidden]{display:none!important}
   @media (max-width:860px){ .dash-grid{grid-template-columns:repeat(3,1fr)} .mini-grid{grid-template-columns:repeat(2,1fr)} }
   @media (max-width:420px){ .dash-grid{grid-template-columns:repeat(3,1fr);gap:8px} .stat b{font-size:20px} }
+
+  /* ---------- v3: hero ---------- */
+  .hero{text-align:center;padding:26px 8px 6px}
+  .hero-logo{width:64px;height:64px;border-radius:18px;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;margin:0 auto 12px}
+  .hero-logo svg{width:34px;height:34px}
+  .hero-title{font-size:28px;margin:0;line-height:1.2}
+  .hero-title span{color:var(--green)}
+  .hero-sub{color:var(--muted);margin:8px 0 0;font-size:15px}
+  .hero-search{max-width:640px;margin:20px auto 0;padding:6px 8px 6px 18px}
+  .hero-search input{font-size:17px}
+  .hero .hint{max-width:640px;margin:10px auto 0}
+  .quick-topics{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;align-items:center;margin:16px 0 4px}
+  .quick-topics span{font-size:13px;color:var(--muted)}
+  .quick-topics button{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:6px 13px;font-size:13px;cursor:pointer;color:var(--ink);font-family:inherit}
+  .quick-topics button:hover{border-color:var(--green);color:var(--green)}
+  /* ---------- v3: dark mode ---------- */
+  [data-theme="dark"]{--bg:#0f172a;--card:#1e293b;--ink:#e8eef4;--muted:#94a3b8;--line:#2c3a4d;--green:#22c55e;--green2:#4ade80;--green3:#14532d}
+  [data-theme="dark"] .search-box,[data-theme="dark"] .field input,[data-theme="dark"] .chips button,[data-theme="dark"] .modal,[data-theme="dark"] .google-btn,[data-theme="dark"] .btn-secondary,[data-theme="dark"] .stat,[data-theme="dark"] .profile-card,[data-theme="dark"] .mini-card,[data-theme="dark"] .hist-list li,[data-theme="dark"] .pw-box,[data-theme="dark"] .about,[data-theme="dark"] .quick-topics button{background:var(--card);color:var(--ink)}
+  [data-theme="dark"] .search-box input{background:transparent;color:var(--ink)}
+  [data-theme="dark"] .field input{color:var(--ink)}
+  [data-theme="dark"] .google-btn{border-color:var(--line)}
+  [data-theme="dark"] .hero-title span{color:#4ade80}
+  [data-theme="dark"] .side{background:#14532d}
+  [data-theme="dark"] .tile{background:#fff}
+  [data-theme="dark"] .card{box-shadow:none}
+  #themeBtn svg{width:15px;height:15px;vertical-align:-2px;margin-right:5px}
+  @media (max-width:420px){ .hero-title{font-size:23px} .hero{padding-top:18px} }
 </style>
 </head>
 <body>
@@ -192,6 +219,7 @@
       <button type="button" data-view="about"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/></svg><span>About</span></button>
     </div>
     <div id="authBox"></div>
+    <button type="button" class="btn-ghost" id="themeBtn" style="margin-top:16px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg><span>Dark mode</span></button>
     <h3>Categories</h3>
     <div class="cat-list" id="sideCats"></div>
     <h3>Unsaon pag-gamit</h3>
@@ -205,13 +233,24 @@
 
   <main class="main">
     <div id="view-home">
-    <div class="search-wrap">
-      <div class="search-box">
+    <div class="hero">
+      <div class="hero-logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></div>
+      <h2 class="hero-title">Pangitaa imong RRL, <span>mas paspas</span></h2>
+      <p class="hero-sub">Usa ka type lang sa imong topic — i-tap ang site, diretso ka sa results.</p>
+      <div class="search-box hero-search">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
         <input id="q" type="search" placeholder="Type imong topic… pananglitan: solar ventilation" autocomplete="off" />
         <button id="clearBtn" type="button">Clear</button>
       </div>
       <p class="hint">Type og topic, unya i-tap ang usa ka site — <b>mo-direct ra ka sa results</b> ana nga site. Kung walay topic, ang homepage sa site ang mo-abli.</p>
+      <div class="quick-topics"><span>Sikat nga topics:</span>
+        <button type="button" data-q="solar ventilation">solar ventilation</button>
+        <button type="button" data-q="education">education</button>
+        <button type="button" data-q="engineering">engineering</button>
+        <button type="button" data-q="climate change">climate change</button>
+        <button type="button" data-q="artificial intelligence">artificial intelligence</button>
+        <button type="button" data-q="mental health">mental health</button>
+      </div>
     </div>
 
     <div class="chips" id="chips"></div>
@@ -616,6 +655,14 @@ function renderDashboard(){
   }
 }
 
+/* ---------- v3: theme ---------- */
+function applyTheme(t){
+  document.documentElement.setAttribute("data-theme", t);
+  try{ localStorage.setItem("rrlhub_theme_v1", t); }catch(e){}
+  var b = document.getElementById("themeBtn");
+  if(b) b.querySelector("span").textContent = t === "dark" ? "Light mode" : "Dark mode";
+}
+
 /* ---------- v2 init ---------- */
 function initV2(){
   document.querySelectorAll("#sideNav button").forEach(function(b){
@@ -672,6 +719,19 @@ function initV2(){
     err.textContent = "";
     document.getElementById("pwBox").hidden = true;
     toast("Password changed.");
+  });
+  var savedTheme = "light";
+  try{ savedTheme = localStorage.getItem("rrlhub_theme_v1") || "light"; }catch(e){}
+  applyTheme(savedTheme);
+  document.getElementById("themeBtn").addEventListener("click", function(){
+    applyTheme(document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark");
+  });
+  document.querySelectorAll(".quick-topics button").forEach(function(b){
+    b.addEventListener("click", function(){
+      qInput.value = b.dataset.q;
+      render();
+      document.getElementById("grid").scrollIntoView({behavior: "smooth", block: "start"});
+    });
   });
   renderAuthBox();
   initGoogle();
