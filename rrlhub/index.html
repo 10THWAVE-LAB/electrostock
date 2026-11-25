@@ -199,6 +199,28 @@
   [data-theme="dark"] .card{box-shadow:none}
   #themeBtn svg{width:15px;height:15px;vertical-align:-2px;margin-right:5px}
   @media (max-width:420px){ .hero-title{font-size:23px} .hero{padding-top:18px} }
+
+  /* ---------- v4: reviews ---------- */
+  .review-summary{display:flex;gap:16px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px}
+  .avg-num{font-size:40px;font-weight:800;color:var(--green)}
+  .avg-stars{font-size:20px;color:#f59e0b;letter-spacing:2px}
+  .review-form{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-top:14px}
+  .stars-input{display:flex;gap:4px;margin:6px 0 10px}
+  .stars-input button{background:none;border:0;font-size:30px;color:#d1d5db;cursor:pointer;padding:2px;line-height:1;font-family:inherit}
+  .stars-input button.on{color:#f59e0b}
+  .review-form textarea{width:100%;border:1.5px solid var(--line);border-radius:10px;padding:10px 12px;font-size:15px;font-family:inherit;box-sizing:border-box;resize:vertical}
+  .review-card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:12px}
+  .review-head{display:flex;gap:12px;align-items:center}
+  .review-head img{width:44px;height:44px;border-radius:50%;object-fit:cover;background:#f3f4f6}
+  .review-head .avatar-letter{width:44px;height:44px}
+  .review-stars{color:#f59e0b;font-size:14px;letter-spacing:1px}
+  .review-date{margin-left:auto;font-size:12px;color:var(--muted);white-space:nowrap}
+  .review-card p{margin:10px 0 0;font-size:15px}
+  .about-stats{display:flex;gap:14px;flex-wrap:wrap;margin:14px 0}
+  .about-stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 18px;text-align:center}
+  .about-stat b{font-size:20px;display:block;color:var(--green)}
+  .about-stat span{font-size:12px;color:var(--muted)}
+  [data-theme="dark"] .review-form textarea,[data-theme="dark"] .review-summary,[data-theme="dark"] .review-form,[data-theme="dark"] .review-card,[data-theme="dark"] .about-stat{background:var(--card);color:var(--ink)}
 </style>
 </head>
 <body>
@@ -217,6 +239,7 @@
       <button type="button" data-view="home" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg><span>Home</span></button>
       <button type="button" data-view="dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="8" rx="1.5"/><rect x="3" y="16" width="7" height="4" rx="1.5"/></svg><span>Dashboard</span></button>
       <button type="button" data-view="about"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/></svg><span>About</span></button>
+      <button type="button" data-view="reviews"><svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.4 6.1 20.5l1.2-6.5L2.5 9.4l6.6-.9z"/></svg><span>Reviews</span></button>
     </div>
     <div id="authBox"></div>
     <button type="button" class="btn-ghost" id="themeBtn" style="margin-top:16px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg><span>Dark mode</span></button>
@@ -284,19 +307,45 @@
     <div id="view-about" hidden>
       <h2 class="page-title">About RRL Hub</h2>
       <section class="about">
-        <p>RRL Hub was made by <b>Justin M. Bardiago</b>, a student of Eastern Visayas State University &ndash; Ormoc Campus, to help students find their Review of Related Literature (RRL) faster and easier.</p>
-        <p>Writing the RRL is one of the hardest parts of a thesis. Instead of opening one research site at a time, RRL Hub puts the most useful research search sites in one place. Type your topic once, tap any site, and you go straight to the search results for that topic.</p>
+        <p>RRL Hub was made by <b>Justin M. Bardiago</b> to help students, researchers, teachers, and anyone who needs reliable academic sources find what they are looking for &mdash; faster and easier.</p>
+        <p>Whether you are writing a thesis, preparing a lesson, working on a research project, or simply checking a fact, RRL Hub puts the most useful research search sites in one place. Type your topic once, tap any site, and you go straight to the search results for that topic.</p>
         <h2>What you can do here</h2>
         <p>Search 12 research sites from one page: Google Scholar, ResearchGate, ScienceDirect, Semantic Scholar, DOAJ, CORE, BASE, ERIC, IEEE Xplore, SpringerLink, JSTOR, and PLOS ONE.</p>
-        <p>Sign in with your Google account, or create an account with your email, to save your favorite sites and keep your recent searches on your dashboard.</p>
-        <h2>Install on Windows</h2>
-        <p>On a Windows computer, open this page in Chrome or Microsoft Edge, then click the install icon in the address bar (or open the menu and choose &ldquo;Install RRL Hub&rdquo;). It will appear as an app on your computer, just like any other program.</p>
+        <p>Sign in with your Google account, or create an account with your email, to save your favorite sites, keep your recent searches on your dashboard, and rate RRL Hub.</p>
+        <div class="about-stats">
+          <div class="about-stat"><b id="aboutRating">&mdash;</b><span>Average rating</span></div>
+          <div class="about-stat"><b><span class="install-count">0</span></b><span>App installs</span></div>
+        </div>
+        <p id="aboutReviewSum" class="muted"></p>
+        <h2>Install the app</h2>
+        <p>Get RRL Hub on your device, just like any other app. On Windows, open this page in Chrome or Microsoft Edge, then click the install icon in the address bar (or open the menu and choose &ldquo;Install RRL Hub&rdquo;). On Android, use Chrome and tap Install. On iPhone or iPad, tap Share and choose &ldquo;Add to Home Screen&rdquo;.</p>
+        <button type="button" class="btn-green" id="installBtn">Install RRL Hub</button>
         <h2>Privacy</h2>
-        <p>Your account, favorites, and searches are stored only on your device. Read our <a href="privacy.html">Privacy Policy</a>.</p>
+        <p>Your account, favorites, and searches are stored only on your device. Reviews you post (your name, photo, rating, and comment) are shared with other users so everyone can read them. Read our <a href="privacy.html">Privacy Policy</a>.</p>
         <h2>Note</h2>
-        <p>RRL Hub is free to use. The research sites linked here belong to their respective owners; RRL Hub only links to them. Always cite the sources you use in your paper.</p>
+        <p>RRL Hub is free to use. The research sites linked here belong to their respective owners; RRL Hub only links to them. Always cite the sources you use.</p>
         <p class="credit">Made by Justin M. Bardiago &mdash; ELX-3B, EVSU Ormoc Campus.</p>
       </section>
+    </div>
+    <div id="view-reviews" hidden>
+      <h2 class="page-title">Reviews</h2>
+      <div class="review-summary" id="reviewSummary"></div>
+      <div class="review-form" id="reviewForm">
+        <h3 class="sec-title" style="margin-top:0">Rate RRL Hub</h3>
+        <div class="stars-input" id="starsInput">
+          <button type="button" data-v="1" aria-label="1 star">&star;</button>
+          <button type="button" data-v="2" aria-label="2 stars">&star;</button>
+          <button type="button" data-v="3" aria-label="3 stars">&star;</button>
+          <button type="button" data-v="4" aria-label="4 stars">&star;</button>
+          <button type="button" data-v="5" aria-label="5 stars">&star;</button>
+        </div>
+        <div class="field"><label>Your comment</label><textarea id="reviewText" rows="3" placeholder="What do you think of RRL Hub?"></textarea></div>
+        <p class="err" id="reviewErr"></p>
+        <button type="button" class="btn-primary" id="reviewSubmit" style="max-width:220px">Post review</button>
+        <p class="muted" id="reviewSignedOut" hidden>Sign in to rate and comment &mdash; your name and photo will show with your review.</p>
+      </div>
+      <h3 class="sec-title">What people say</h3>
+      <div id="reviewList"></div>
     </div>
     <p class="foot-note">RRL Hub — made by Justin M. Bardiago to help students find their RRL. The sites are external links and are not owned by RRL Hub. Always cite the sources you use. <a href="privacy.html">Privacy Policy</a></p>
   </main>
@@ -493,8 +542,10 @@ function showView(v){
   document.getElementById("view-home").hidden = v !== "home";
   document.getElementById("view-dashboard").hidden = v !== "dashboard";
   document.getElementById("view-about").hidden = v !== "about";
+  document.getElementById("view-reviews").hidden = v !== "reviews";
   document.querySelectorAll("#sideNav button").forEach(function(b){ b.classList.toggle("on", b.dataset.view === v); });
   if(v === "dashboard") renderDashboard();
+  if(v === "reviews") renderReviews();
   window.scrollTo(0, 0);
 }
 
@@ -655,6 +706,146 @@ function renderDashboard(){
   }
 }
 
+
+/* ================= RRL Hub v4: reviews + installs ================= */
+var FIREBASE_URL = "";
+var LS_REVIEWS = "rrlhub_reviews_v1";
+var LS_INSTALLS = "rrlhub_installs_v1";
+var selectedRating = 0;
+var installCount = 0;
+var deferredPrompt = null;
+
+function fb(path){ return FIREBASE_URL ? FIREBASE_URL + path : null; }
+async function fetchJSON(url, opts){
+  try{ var r = await fetch(url, opts); if(!r.ok) return null; return await r.json(); }catch(e){ return null; }
+}
+async function loadReviews(){
+  if(FIREBASE_URL){
+    var d = await fetchJSON(fb("/reviews.json"));
+    if(!d) return [];
+    return Object.keys(d).map(function(k){ return d[k]; }).sort(function(a, b){ return b.t - a.t; });
+  }
+  try{ return JSON.parse(localStorage.getItem(LS_REVIEWS)) || []; }catch(e){ return []; }
+}
+async function saveReview(rv){
+  var u = currentUser(); if(!u) return false;
+  if(FIREBASE_URL){
+    var res = null;
+    try{ res = await fetch(fb("/reviews/" + encodeURIComponent(u.id) + ".json"), {method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify(rv)}); }catch(e){}
+    return !!(res && res.ok);
+  }
+  var list = await loadReviews();
+  list = list.filter(function(x){ return x.uid !== u.id; });
+  list.unshift(rv);
+  try{ localStorage.setItem(LS_REVIEWS, JSON.stringify(list)); }catch(e){}
+  return true;
+}
+function starsHTML(n){ var s = ""; for(var i = 1; i <= 5; i++) s += i <= n ? "\u2605" : "\u2606"; return s; }
+function paintStars(){
+  document.querySelectorAll("#starsInput button").forEach(function(b, i){
+    b.textContent = i < selectedRating ? "\u2605" : "\u2606";
+    b.classList.toggle("on", i < selectedRating);
+  });
+}
+async function renderReviews(){
+  var list = await loadReviews();
+  var avg = list.length ? list.reduce(function(a, r){ return a + r.rating; }, 0) / list.length : 0;
+  var sum = document.getElementById("reviewSummary");
+  sum.innerHTML = list.length
+    ? '<div class="avg-num">' + avg.toFixed(1) + '</div><div><div class="avg-stars">' + starsHTML(Math.round(avg)) + '</div><div class="muted">' + list.length + (list.length === 1 ? ' review' : ' reviews') + '</div></div>'
+    : '<div class="avg-num">&mdash;</div><div><div class="avg-stars">\u2606\u2606\u2606\u2606\u2606</div><div class="muted">No reviews yet &mdash; be the first!</div></div>';
+  var ar = document.getElementById("aboutRating");
+  if(ar) ar.textContent = list.length ? avg.toFixed(1) + " \u2605" : "\u2014";
+  var aboutSum = document.getElementById("aboutReviewSum");
+  if(aboutSum){
+    aboutSum.innerHTML = list.length
+      ? '<b>' + avg.toFixed(1) + ' \u2605</b> from ' + list.length + ' review' + (list.length === 1 ? '' : 's') + ' &mdash; <a href="#" id="aboutGoReviews">read what people say</a>'
+      : 'No reviews yet &mdash; <a href="#" id="aboutGoReviews">be the first to rate RRL Hub</a>';
+    var go = document.getElementById("aboutGoReviews");
+    if(go) go.addEventListener("click", function(ev){ ev.preventDefault(); showView("reviews"); });
+  }
+  var u = currentUser();
+  document.getElementById("reviewSignedOut").hidden = !!u;
+  document.getElementById("reviewSubmit").style.display = u ? "" : "none";
+  document.getElementById("reviewText").disabled = !u;
+  var own = u ? list.filter(function(x){ return x.uid === u.id; })[0] : null;
+  var ta = document.getElementById("reviewText");
+  if(own && !ta.dataset.prefilled){
+    selectedRating = own.rating; paintStars();
+    ta.value = own.comment; ta.dataset.prefilled = "1";
+  }
+  var listEl = document.getElementById("reviewList");
+  if(!list.length){ listEl.innerHTML = '<p class="muted">No reviews yet.</p>'; return; }
+  listEl.innerHTML = "";
+  list.forEach(function(r){
+    var d = document.createElement("div");
+    d.className = "review-card";
+    var img = r.photo ? '<img src="' + r.photo + '" alt="">' : '<span class="avatar-letter">' + esc((r.name || "?").charAt(0).toUpperCase()) + '</span>';
+    d.innerHTML = '<div class="review-head">' + img + '<div style="min-width:0"><b>' + esc(r.name) + '</b><div class="review-stars">' + starsHTML(r.rating) + '</div></div><span class="review-date">' + new Date(r.t).toLocaleDateString() + '</span></div><p>' + esc(r.comment) + '</p>';
+    listEl.appendChild(d);
+  });
+}
+async function submitReview(){
+  var u = currentUser();
+  if(!u){ openAuth("login", "Sign in to rate and comment."); return; }
+  var err = document.getElementById("reviewErr");
+  var comment = document.getElementById("reviewText").value.trim();
+  if(!selectedRating) return err.textContent = "Please tap a star rating (1-5).";
+  if(comment.length < 3) return err.textContent = "Please write a short comment.";
+  if(comment.length > 500) return err.textContent = "Please keep your comment under 500 characters.";
+  err.textContent = "";
+  var btn = document.getElementById("reviewSubmit");
+  btn.disabled = true; btn.textContent = "Posting...";
+  var ok = await saveReview({uid: u.id, name: u.name, photo: u.photo || "", rating: selectedRating, comment: comment, t: Date.now()});
+  btn.disabled = false; btn.textContent = "Post review";
+  if(!ok){ err.textContent = "Could not post your review. Please try again."; return; }
+  toast("Thanks for your review!");
+  renderReviews();
+}
+
+/* ---------- installs counter ---------- */
+function paintInstalls(){
+  document.querySelectorAll(".install-count").forEach(function(el){ el.textContent = installCount.toLocaleString("en-US"); });
+}
+async function loadInstalls(){
+  if(FIREBASE_URL){
+    var v = await fetchJSON(fb("/stats/installs.json"));
+    installCount = (typeof v === "number") ? v : 0;
+  } else {
+    try{ installCount = parseInt(localStorage.getItem(LS_INSTALLS) || "0", 10) || 0; }catch(e){ installCount = 0; }
+  }
+  paintInstalls();
+}
+async function bumpInstall(){
+  var done = false;
+  try{ done = localStorage.getItem("rrlhub_installed_v1") === "1"; }catch(e){}
+  if(done) return;
+  try{ localStorage.setItem("rrlhub_installed_v1", "1"); }catch(e){}
+  if(FIREBASE_URL){
+    var v = await fetchJSON(fb("/stats/installs.json"));
+    var n = (typeof v === "number" ? v : 0) + 1;
+    try{ await fetch(fb("/stats/installs.json"), {method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify(n)}); }catch(e){}
+    installCount = n;
+  } else {
+    installCount = installCount + 1;
+    try{ localStorage.setItem(LS_INSTALLS, String(installCount)); }catch(e){}
+  }
+  paintInstalls();
+}
+window.addEventListener("appinstalled", bumpInstall);
+window.addEventListener("beforeinstallprompt", function(e){ e.preventDefault(); deferredPrompt = e; });
+async function installApp(){
+  if(deferredPrompt){
+    deferredPrompt.prompt();
+    var choice = null;
+    try{ choice = await deferredPrompt.userChoice; }catch(e){}
+    deferredPrompt = null;
+    if(choice && choice.outcome === "accepted"){ bumpInstall(); toast("Thanks for installing RRL Hub!"); }
+  } else {
+    toast("To install: open your browser menu and choose Install RRL Hub (on iPhone: Share, then Add to Home Screen).");
+  }
+}
+
 /* ---------- v3: theme ---------- */
 function applyTheme(t){
   document.documentElement.setAttribute("data-theme", t);
@@ -733,6 +924,13 @@ function initV2(){
       document.getElementById("grid").scrollIntoView({behavior: "smooth", block: "start"});
     });
   });
+  document.querySelectorAll("#starsInput button").forEach(function(b){
+    b.addEventListener("click", function(){ selectedRating = parseInt(b.dataset.v, 10); paintStars(); });
+  });
+  document.getElementById("reviewSubmit").addEventListener("click", submitReview);
+  document.getElementById("installBtn").addEventListener("click", installApp);
+  loadInstalls();
+  renderReviews();
   renderAuthBox();
   initGoogle();
   if("serviceWorker" in navigator){ navigator.serviceWorker.register("sw.js").catch(function(){}); }
