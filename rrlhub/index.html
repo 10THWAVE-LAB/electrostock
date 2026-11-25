@@ -414,7 +414,7 @@
       <p class="err" id="liErr"></p>
       <button type="button" class="btn-primary" id="liGo">Sign in</button>
       <p class="switch">No account yet? <a id="toRegister">Create one</a></p>
-      <p class="fine">Accounts are saved on this device only — there is no server. Use a password you don&rsquo;t use anywhere else. See our <a href="privacy.html" target="_blank">Privacy Policy</a>.</p>
+      <p class="fine">Accounts are saved on this device only — there is no server. Use a password you don&rsquo;t use anywhere else. See our <a href="privacy.html">Privacy Policy</a>.</p>
     </div>
     <div id="authRegister" hidden>
       <h2>Create your account</h2>
@@ -491,7 +491,7 @@ function openSite(site){
     ud.searches = ud.searches.slice(0, 20);
     saveUserData(u.email, ud);
   }
-  window.open(dest, "_blank", "noopener");
+  if(window.Capacitor){ location.href = dest; } else { window.open(dest, "_blank", "noopener"); }
 }
 
 function render(){
