@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="ceb">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>AsaKa — Family Tracker</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh}
+  header{background:linear-gradient(135deg,#0d9488,#059669);padding:18px 20px 14px;text-align:center}
+  header h1{font-size:30px;letter-spacing:.5px}
+  header p{font-size:14px;opacity:.92;margin-top:2px}
+  .wrap{max-width:560px;margin:0 auto;padding:16px}
+  .card{background:#1e293b;border:1px solid #334155;border-radius:16px;padding:18px;margin-bottom:14px}
+  .card h2{font-size:18px;margin-bottom:8px}
+  .card p{font-size:14px;line-height:1.55;color:#cbd5e1}
+  .btn{display:block;width:100%;padding:14px;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;margin-top:10px;text-align:center;text-decoration:none}
+  .btn-green{background:#10b981;color:#fff}
+  .btn-teal{background:#0d9488;color:#fff}
+  .btn-ghost{background:#334155;color:#e2e8f0}
+  .btn-red{background:#dc2626;color:#fff}
+  .btn:active{transform:scale(.98)}
+  input[type=text]{width:100%;padding:13px;border-radius:12px;border:1px solid #475569;background:#0f172a;color:#fff;font-size:16px;margin-top:8px}
+  input[type=text]:focus{outline:2px solid #14b8a6}
+  .code{font-size:34px;letter-spacing:6px;font-weight:800;text-align:center;background:#0f172a;border:1px dashed #14b8a6;border-radius:12px;padding:12px 6px;margin:12px 0;word-break:break-all}
+  .linkbox{font-size:13px;word-break:break-all;background:#0f172a;border:1px solid #334155;border-radius:10px;padding:10px;margin-top:8px;color:#a5f3fc}
+  .steps{counter-reset:s;list-style:none}
+  .steps li{counter-increment:s;position:relative;padding-left:34px;margin-bottom:12px;font-size:14px;line-height:1.5;color:#cbd5e1}
+  .steps li::before{content:counter(s);position:absolute;left:0;top:0;width:24px;height:24px;border-radius:50%;background:#0d9488;color:#fff;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center}
+  .note{font-size:12.5px;line-height:1.55;color:#94a3b8;background:#1e293b;border:1px solid #334155;border-radius:12px;padding:12px 14px;margin-bottom:14px}
+  .note b{color:#fbbf24}
+  #map{height:62vh;min-height:380px;width:100%;border-radius:16px;border:1px solid #334155;z-index:1}
+  .statusbar{display:flex;align-items:center;gap:8px;font-size:13px;margin:12px 0 8px;color:#cbd5e1}
+  .dot{width:10px;height:10px;border-radius:50%;background:#64748b;flex:none}
+  .dot.on{background:#22c55e;box-shadow:0 0 0 4px rgba(34,197,94,.25)}
+  .dot.mid{background:#f59e0b}
+  .dot.off{background:#ef4444}
+  .member{display:flex;align-items:center;gap:10px;background:#1e293b;border:1px solid #334155;border-radius:12px;padding:10px 12px;margin-bottom:8px}
+  .member .avatar{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:17px;color:#fff;flex:none}
+  .member .info{flex:1;min-width:0}
+  .member .info b{font-size:15px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .member .info span{font-size:12.5px;color:#94a3b8}
+  .member.stale{opacity:.55}
+  .pin{position:relative;text-align:center}
+  .pin span{display:inline-flex;width:34px;height:34px;border-radius:50% 50% 50% 4px;transform:rotate(-45deg);background:var(--c,#0d9488);border:2.5px solid #fff;color:#fff;font-weight:800;font-size:16px;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.45)}
+  .pin span b{transform:rotate(45deg)}
+  .pin em{position:absolute;left:50%;transform:translateX(-50%);top:36px;background:rgba(15,23,42,.92);color:#fff;font-style:normal;font-size:12px;font-weight:700;padding:3px 8px;border-radius:20px;white-space:nowrap;border:1px solid #475569}
+  .hidden{display:none!important}
+  .row{display:flex;gap:8px}
+  .row .btn{flex:1}
+  .err{background:#450a0a;border:1px solid #b91c1c;color:#fecaca;border-radius:12px;padding:12px 14px;font-size:14px;line-height:1.5;margin-top:10px}
+  .ok{background:#052e16;border:1px solid #15803d;color:#bbf7d0;border-radius:12px;padding:12px 14px;font-size:14px;line-height:1.5;margin-top:10px}
+  small.dim{color:#94a3b8;font-size:12.5px}
+  .leaflet-popup-content{color:#0f172a;font-size:14px;line-height:1.45}
+  .leaflet-popup-content b{font-size:15px}
+</style>
+</head>
+<body>
+<header>
+  <h1>📍 AsaKa</h1>
+  <p>Family live location — with permission</p>
+</header>
+
+<div class="wrap">
+  <!-- ============ HOME VIEW ============ -->
+  <div id="view-home">
+    <div class="note">🔒 <b>Walay tago-tago:</b> makita ra ka sa mapa kung <b>ikaw mismo</b> mo-tap og “I-share akong location” ug mo-allow. Bisan kinsa nga naay circle link makakita nimo samtang naka-share ka — ayaw i-share ang link sa dili kaila. Pwede ka mo-stop bisan kanus-a.</div>
+
+    <div class="card" id="join-card">
+      <h2>👋 Mo-apil ka og circle?</h2>
+      <p>Kung naa kay link gikan sa pamilya, ablihi lang na — automatic na nga mo-apil ka. O i-type ang circle code dinhi:</p>
+      <input type="text" id="join-code" placeholder="Circle code (pananglitan: K7M2QX)" maxlength="12" style="text-transform:uppercase">
+      <button class="btn btn-teal" id="btn-join">Apil sa Circle</button>
+      <div id="join-err" class="err hidden"></div>
+    </div>
+
+    <div class="card">
+      <h2>➕ Paghimo og bag-ong circle</h2>
+      <p>Ikaw ang mo-tan-aw sa mapa. Paghimo og code, dayon i-share ang link sa imong pamilya.</p>
+      <button class="btn btn-green" id="btn-create">Paghimo og Circle</button>
+    </div>
+
+    <div class="card">
+      <h2>🗺️ Unsaon pag-gamit</h2>
+      <ol class="steps">
+        <li><b>Paghimo og circle</b> ug i-share ang link sa imong pamilya (Messenger, SMS, ug uban pa).</li>
+        <li><b>Sila mo-abli sa link</b>, mo-type sa ilang pangalan, ug mo-tap og “I-share akong location”.</li>
+        <li><b>Makita nimo sila live sa mapa</b> — ug makita pud nila ang usag-usa. Pwede sila mo-stop bisan kanus-a.</li>
+      </ol>
+      <p style="margin-top:6px"><small class="dim">Kinahanglan og internet ug location permission sa phone. Ang location kay moagi og public relay ug makita ra sa naay circle code.</small></p>
+    </div>
+  </div>
+
+  <!-- ============ CIRCLE VIEW ============ -->
+  <div id="view-circle" class="hidden">
+    <div class="card">
+      <h2>Circle: <span id="circle-code-label"></span></h2>
+      <p id="circle-role-text">Imoha ning circle. I-share ang link sa pamilya para makita sila sa mapa.</p>
+      <div class="linkbox" id="invite-link"></div>
+      <div class="row">
+        <button class="btn btn-teal" id="btn-copy">📋 Kopyaha ang Link</button>
+        <button class="btn btn-ghost" id="btn-share">↗ Share</button>
+      </div>
+      <div id="copy-ok" class="ok hidden">Na-copy na ang link! I-paste na sa Messenger o SMS. ✅</div>
+    </div>
+
+    <div class="card" id="share-card">
+      <h2>📍 I-share akong location</h2>
+      <p>Mo-type sa imong pangalan, dayon i-tap ang button. Mangayo ang browser og permiso sa location — i-tap <b>Allow</b>.</p>
+      <input type="text" id="my-name" placeholder="Imong pangalan (pananglitan: Justin)" maxlength="24">
+      <button class="btn btn-green" id="btn-start-share">▶ I-share Akong Location</button>
+      <button class="btn btn-red hidden" id="btn-stop-share">■ Hunong sa Pag-share</button>
+      <div id="share-err" class="err hidden"></div>
+      <div id="share-ok" class="ok hidden">Nag-share na ka! Makita na ka sa mapa sa imong pamilya. 🟢</div>
+    </div>
+
+    <div class="statusbar"><span class="dot" id="conn-dot"></span><span id="conn-text">Nagkonek pa…</span></div>
+    <div id="map"></div>
+    <div style="height:12px"></div>
+    <h2 style="font-size:17px;margin:6px 0 10px">👥 Naa sa mapa (<span id="member-count">0</span>)</h2>
+    <div id="member-list"><p style="color:#94a3b8;font-size:14px">Wala pa'y nag-share. I-share ang link sa pamilya para makita sila dinhi.</p></div>
+    <button class="btn btn-ghost" id="btn-fit" style="margin-top:12px">🎯 I-fit ang Mapa</button>
+    <button class="btn btn-ghost" id="btn-leave" style="margin-top:8px">← Balik sa Home</button>
+  </div>
+</div>
+<script>
+(function(){
+"use strict";
+var MQTT_URL = "wss://broker.emqx.io:8084/mqtt";
+var TOPIC = "asaka/";
+var PUB_EVERY = 10000, STALE_MS = 90000, REMOVE_MS = 600000;
+var PALETTE = ["#0d9488","#2563eb","#db2777","#ea580c","#7c3aed","#0891b2","#65a30d","#dc2626"];
+
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];}); }
+function param(n){ var m = new RegExp("[?&]"+n+"=([^&#]*)").exec(location.search); return m ? decodeURIComponent(m[1]) : ""; }
+function genCode(){ var c="ABCDEFGHJKMNPQRSTUVWXYZ23456789", s=""; for(var i=0;i<6;i++) s+=c[Math.floor(Math.random()*c.length)]; return s; }
+function ago(ts){ var s=Math.max(0,Math.round((Date.now()-ts)/1000)); if(s<5) return "karon lang"; if(s<60) return s+"s ago"; var m=Math.round(s/60); if(m<60) return m+" min ago"; return Math.round(m/60)+" hr ago"; }
+function colorFor(id){ var h=0; for(var i=0;i<id.length;i++) h=(h*31+id.charCodeAt(i))>>>0; return PALETTE[h%PALETTE.length]; }
+
+var circleCode = (param("c")||"").toUpperCase().replace(/[^A-Z0-9]/g,"");
+var memberId = localStorage.getItem("asaka_member_id") || ("m"+Math.random().toString(36).slice(2,10));
+localStorage.setItem("asaka_member_id", memberId);
+var myName = localStorage.getItem("asaka_name") || "";
+var client=null, connected=false, sharing=false, watchId=null, lastPos=null, pubTimer=null, tickTimer=null;
+var map=null, members={}, boundsFitted=false;
+
+function inviteLink(){ return location.origin + location.pathname + "?c=" + circleCode; }
+
+/* ---------- views ---------- */
+function showCircle(){
+  $("view-home").classList.add("hidden");
+  $("view-circle").classList.remove("hidden");
+  $("circle-code-label").textContent = circleCode;
+  $("invite-link").textContent = inviteLink();
+  if(myName) $("my-name").value = myName;
+  initMap();
+  connectMQTT();
+  setTimeout(function(){ if(map) map.invalidateSize(); }, 300);
+}
+function showHome(){
+  stopSharing(true);
+  if(client){ try{ client.end(true); }catch(e){} client=null; connected=false; }
+  $("view-circle").classList.add("hidden");
+  $("view-home").classList.remove("hidden");
+  if(history.replaceState) history.replaceState(null,"",location.pathname);
+}
+
+/* ---------- map ---------- */
+function initMap(){
+  if(map) return;
+  map = L.map("map").setView([10.3157, 123.8854], 6); // Cebu, Philippines default
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {maxZoom:19, attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'}).addTo(map);
+}
+function makeIcon(name, color){
+  var initial = (name||"?").trim().charAt(0).toUpperCase();
+  return L.divIcon({className:"", html:'<div class="pin"><span style="--c:'+color+';background:'+color+'"><b>'+esc(initial)+'</b></span><em>'+esc(name)+'</em></div>', iconSize:[40,52], iconAnchor:[20,48]});
+}
+function upsertMember(id, d){
+  var now = Date.now();
+  var m = members[id] || {marker:null};
+  m.n=d.n; m.la=d.la; m.ln=d.ln; m.ac=d.ac; m.ts=d.ts||now;
+  members[id]=m;
+  if(!map) return;
+  var color = id===memberId ? "#2563eb" : colorFor(id);
+  var label = m.n + (id===memberId ? " (Ikaw)" : "");
+  if(!m.marker){
+    m.marker = L.marker([m.la, m.ln], {icon: makeIcon(label, color)}).addTo(map);
+    m.marker.bindPopup("");
+  } else {
+    m.marker.setLatLng([m.la, m.ln]);
+    m.marker.setIcon(makeIcon(label, color));
+  }
+  m.marker.getPopup().setContent("<b>"+esc(label)+"</b><br>Updated: "+ago(m.ts)+"<br>Accuracy: ±"+Math.round(m.ac||0)+" m");
+  if(!boundsFitted){ fitMap(); boundsFitted=true; }
+  renderList();
+}
+function removeMember(id){
+  var m=members[id]; if(!m) return;
+  if(m.marker && map) map.removeLayer(m.marker);
+  delete members[id];
+  renderList();
+}
+function fitMap(){
+  var pts = Object.keys(members).map(function(k){ return [members[k].la, members[k].ln]; });
+  if(map && pts.length===1) map.setView(pts[0], 15);
+  else if(map && pts.length>1) map.fitBounds(pts, {padding:[40,40]});
+}
+function renderList(){
+  var ids = Object.keys(members);
+  $("member-count").textContent = ids.length;
+  if(!ids.length){ $("member-list").innerHTML = '<p style="color:#94a3b8;font-size:14px">Wala pa\'y nag-share. I-share ang link sa pamilya para makita sila dinhi.</p>'; return; }
+  var now = Date.now();
+  $("member-list").innerHTML = ids.map(function(id){
+    var m=members[id], stale = now-m.ts > STALE_MS;
+    var color = id===memberId ? "#2563eb" : colorFor(id);
+    return '<div class="member'+(stale?' stale':'')+'"><div class="avatar" style="background:'+color+'">'+esc((m.n||"?").charAt(0).toUpperCase())+'</div><div class="info"><b>'+esc(m.n)+(id===memberId?' (Ikaw)':'')+'</b><span>'+(stale?'⚠ Offline — ':'🟢 ')+ago(m.ts)+' · ±'+Math.round(m.ac||0)+' m</span></div></div>';
+  }).join("");
+}
+
+/* ---------- MQTT ---------- */
+function setConn(on, text){
+  $("conn-dot").className = "dot " + (on ? "on" : "mid");
+  $("conn-text").textContent = text;
+}
+function connectMQTT(){
+  if(client || typeof mqtt === "undefined"){ if(!client) setConn(false, "MQTT library wala ma-load — i-refresh ang page."); return; }
+  setConn(false, "Nagkonek sa relay…");
+  try{
+    client = mqtt.connect(MQTT_URL, {clientId:"asaka-"+memberId+"-"+Math.random().toString(36).slice(2,7), clean:true, reconnectPeriod:3000, connectTimeout:10000});
+  }catch(e){ setConn(false, "Dili makakonek. I-refresh ang page."); return; }
+  client.on("connect", function(){
+    connected=true; setConn(true, "Connected — live na ang mapa 🟢");
+    client.subscribe(TOPIC+circleCode+"/#", {qos:1}, function(){});
+  });
+  client.on("reconnect", function(){ connected=false; setConn(false, "Nag-reconnect…"); });
+  client.on("offline", function(){ connected=false; setConn(false, "Offline — naghulat og internet…"); });
+  client.on("error", function(){ connected=false; setConn(false, "Connection error — nag-retry…"); });
+  client.on("message", function(topic, payload){
+    var parts = topic.split("/");
+    var id = parts[2]; if(!id) return;
+    var raw = payload ? payload.toString() : "";
+    if(!raw){ removeMember(id); return; }
+    try{ var d = JSON.parse(raw); if(typeof d.la!=="number" || typeof d.ln!=="number") return; upsertMember(id, d); }catch(e){}
+  });
+}
+function publishLoc(){
+  if(!client || !connected || !sharing || !lastPos) return;
+  var p = {n: myName, la: lastPos.coords.latitude, ln: lastPos.coords.longitude, ac: lastPos.coords.accuracy, ts: Date.now()};
+  try{ client.publish(TOPIC+circleCode+"/"+memberId, JSON.stringify(p), {qos:1, retain:true}); }catch(e){}
+  upsertMember(memberId, p);
+}
+
+/* ---------- sharing ---------- */
+function startSharing(){
+  var name = $("my-name").value.trim();
+  if(!name){ $("share-err").textContent = "I-type sa imong pangalan una, bai."; $("share-err").classList.remove("hidden"); return; }
+  if(!("geolocation" in navigator)){ $("share-err").textContent = "Kini nga browser kay walay location support. Gamit og Chrome o Safari sa phone."; $("share-err").classList.remove("hidden"); return; }
+  if(location.protocol !== "https:" && location.hostname !== "localhost"){ $("share-err").textContent = "Kinahanglan og HTTPS para sa location. Ablihi ang link nga https://…"; $("share-err").classList.remove("hidden"); return; }
+  myName = name; localStorage.setItem("asaka_name", name);
+  $("share-err").classList.add("hidden");
+  sharing = true;
+  $("btn-start-share").classList.add("hidden");
+  $("btn-stop-share").classList.remove("hidden");
+  $("share-ok").classList.remove("hidden");
+  try{
+    navigator.geolocation.getCurrentPosition(function(pos){ lastPos=pos; publishLoc(); }, function(){}, {enableHighAccuracy:true, timeout:15000, maximumAge:5000});
+    watchId = navigator.geolocation.watchPosition(function(pos){ lastPos=pos; publishLoc(); }, function(err){
+      if(err && err.code===1){ $("share-err").textContent = "Gi-deny ang location permission. I-allow sa browser settings (padlock icon → Location → Allow), dayon i-refresh."; $("share-err").classList.remove("hidden"); }
+    }, {enableHighAccuracy:true, timeout:20000, maximumAge:5000});
+  }catch(e){ $("share-err").textContent = "Dili ma-start ang location: "+e.message; $("share-err").classList.remove("hidden"); }
+  pubTimer = setInterval(publishLoc, PUB_EVERY);
+}
+function stopSharing(silent){
+  if(watchId!==null){ try{ navigator.geolocation.clearWatch(watchId); }catch(e){} watchId=null; }
+  if(pubTimer){ clearInterval(pubTimer); pubTimer=null; }
+  if(sharing && client && connected){
+    try{ client.publish(TOPIC+circleCode+"/"+memberId, "", {qos:1, retain:true}); }catch(e){}
+  }
+  sharing=false; lastPos=null;
+  if(!silent){
+    $("btn-start-share").classList.remove("hidden");
+    $("btn-stop-share").classList.add("hidden");
+    $("share-ok").classList.add("hidden");
+  }
+  removeMember(memberId);
+}
+window.addEventListener("beforeunload", function(){
+  if(sharing && client && connected){ try{ client.publish(TOPIC+circleCode+"/"+memberId, "", {qos:1, retain:true}); }catch(e){} }
+});
+
+/* ---------- stale sweep ---------- */
+tickTimer = setInterval(function(){
+  var now = Date.now(), changed=false;
+  Object.keys(members).forEach(function(id){
+    if(now - members[id].ts > REMOVE_MS){ removeMember(id); changed=true; }
+  });
+  renderList();
+}, 15000);
+
+/* ---------- events ---------- */
+$("btn-create").addEventListener("click", function(){
+  circleCode = genCode();
+  if(history.replaceState) history.replaceState(null,"",location.pathname+"?c="+circleCode);
+  $("circle-role-text").textContent = "Imoha ning circle. I-share ang link sa pamilya para makita sila sa mapa.";
+  showCircle();
+});
+$("btn-join").addEventListener("click", function(){
+  var code = $("join-code").value.trim().toUpperCase().replace(/[^A-Z0-9]/g,"");
+  if(code.length < 4){ $("join-err").textContent = "Sayop nga code, bai — kinahanglan 6 ka letra/numero."; $("join-err").classList.remove("hidden"); return; }
+  circleCode = code;
+  if(history.replaceState) history.replaceState(null,"",location.pathname+"?c="+circleCode);
+  showCircle();
+});
+$("btn-start-share").addEventListener("click", startSharing);
+$("btn-stop-share").addEventListener("click", function(){ stopSharing(false); });
+$("btn-copy").addEventListener("click", function(){
+  var link = inviteLink();
+  function done(){ $("copy-ok").classList.remove("hidden"); setTimeout(function(){ $("copy-ok").classList.add("hidden"); }, 3000); }
+  if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(link).then(done, function(){ fallbackCopy(link); done(); }); }
+  else { fallbackCopy(link); done(); }
+});
+function fallbackCopy(text){
+  var ta=document.createElement("textarea"); ta.value=text; ta.style.position="fixed"; ta.style.opacity="0";
+  document.body.appendChild(ta); ta.select(); try{ document.execCommand("copy"); }catch(e){} document.body.removeChild(ta);
+}
+$("btn-share").addEventListener("click", function(){
+  var link = inviteLink();
+  if(navigator.share){ navigator.share({title:"AsaKa Circle "+circleCode, text:"Apil sa among family circle — tan-awa mi live sa mapa!", url:link}).catch(function(){}); }
+  else { $("btn-copy").click(); }
+});
+$("btn-fit").addEventListener("click", fitMap);
+$("btn-leave").addEventListener("click", showHome);
+
+/* ---------- boot ---------- */
+if(circleCode){
+  $("join-code").value = circleCode;
+  showCircle();
+} else if(myName){
+  $("my-name").value = myName;
+}
+})();
+</script>
+</body>
+</html>
