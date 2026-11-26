@@ -395,7 +395,7 @@
         <p>Your account, favorites, and searches are stored only on your device. Reviews you post (your name, photo, rating, and comment) are shared with other users so everyone can read them. Read our <a href="privacy.html">Privacy Policy</a>.</p>
         <h2>Note</h2>
         <p>RRL Hub is free to use. The research sites linked here belong to their respective owners; RRL Hub only links to them. Always cite the sources you use.</p>
-        <p class="credit">Made by Justin M. Bardiago. &middot; Version 19.0</p>
+        <p class="credit">Made by Justin M. Bardiago. &middot; Version 19.1</p>
       </section>
     </div>
     <div id="view-reviews" hidden>
@@ -578,16 +578,57 @@ function paperCard(p){
 
 function renderLit(){
   document.getElementById("resultsList").innerHTML = litState.papers.map(paperCard).join("");
-  document.getElementById("resultsMeta").textContent = litState.total ? " \u2014 " + litState.papers.length + " of " + litState.total + " papers" : "";
+  document.getElementById("resultsMeta").textContent = litState.total ? " \u2014 " + litState.papers.length + " of " + litState.total + " papers" + (litState.source === "Crossref" ? " \u00b7 via Crossref" : "") : "";
   document.getElementById("resultsMore").hidden = litState.papers.length >= litState.total || !litState.total;
+}
+
+function stripTags(s){ return (s || "").replace(/<[^>]+>/g, ""); }
+
+function crossrefYear(it){
+  var cands = [it.published, it["published-print"], it["published-online"], it.created];
+  for(var i = 0; i < cands.length; i++){
+    var dp = cands[i] && cands[i]["date-parts"];
+    if(dp && dp[0] && dp[0][0]) return dp[0][0];
+  }
+  return null;
+}
+
+async function fetchCrossref(query, offset){
+  var url = "https://api.crossref.org/works?query=" + encodeURIComponent(query) + "&rows=10&offset=" + offset +
+    "&select=DOI,title,author,published,published-print,published-online,created,container-title,abstract,URL";
+  var r = await fetch(url);
+  if(!r.ok) throw new Error("crossref failed");
+  var d = await r.json();
+  var items = (d.message && d.message.items) || [];
+  return {
+    total: (d.message && d.message["total-results"]) || 0,
+    source: "Crossref",
+    papers: items.map(function(it){
+      return {
+        title: (it.title && it.title[0]) || "Untitled",
+        abstract: stripTags(it.abstract),
+        authors: (it.author || []).map(function(a){ return {name: ((a.given ? a.given + " " : "") + (a.family || "")).trim()}; }).filter(function(a){ return a.name; }),
+        year: crossrefYear(it),
+        venue: (it["container-title"] && it["container-title"][0]) || "",
+        url: it.URL || (it.DOI ? "https://doi.org/" + it.DOI : ""),
+        externalIds: it.DOI ? {DOI: it.DOI} : {},
+        openAccessPdf: null
+      };
+    })
+  };
 }
 
 async function fetchPapers(query, offset){
   var url = S2_API + "?query=" + encodeURIComponent(query) + "&limit=10&offset=" + offset +
     "&fields=title,abstract,authors,year,venue,externalIds,openAccessPdf,url";
-  var r = await fetch(url);
-  if(!r.ok) throw new Error("search failed");
-  return r.json();
+  try{
+    var r = await fetch(url);
+    if(!r.ok) throw new Error("s2 failed");
+    var d = await r.json();
+    return { total: d.total || 0, source: "Semantic Scholar", papers: d.data || [] };
+  }catch(e){
+    return fetchCrossref(query, offset);
+  }
 }
 
 async function runLiteratureSearch(){
@@ -610,7 +651,7 @@ async function runLiteratureSearch(){
   }
   try{
     var data = await fetchPapers(q, 0);
-    litState = { q: q, offset: 0, total: data.total || 0, papers: data.data || [] };
+    litState = { q: q, offset: 0, total: data.total || 0, papers: data.papers || [], source: data.source || "" };
     if(!litState.papers.length){
       status.textContent = "No papers found for \u201C" + q + "\u201D. Try other keywords \u2014 or tap a research site below to search there.";
     } else {
@@ -618,7 +659,7 @@ async function runLiteratureSearch(){
       renderLit();
     }
   }catch(e){
-    status.textContent = "Couldn't load results \u2014 check your connection and try again.";
+    status.textContent = "Couldn't load results \u2014 both search services are busy right now. Check your connection and try again in a bit.";
   }
 }
 
@@ -650,8 +691,9 @@ document.getElementById("resultsMore").addEventListener("click", async function(
   var btn = this; btn.disabled = true; btn.textContent = "Loading\u2026";
   try{
     var data = await fetchPapers(litState.q, litState.papers.length);
-    litState.papers = litState.papers.concat(data.data || []);
+    litState.papers = litState.papers.concat(data.papers || []);
     litState.total = data.total || litState.total;
+    litState.source = data.source || litState.source;
     renderLit();
   }catch(e){
     var st = document.getElementById("resultsStatus");
