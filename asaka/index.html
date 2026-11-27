@@ -33,7 +33,7 @@
   .note{font-size:12.5px;line-height:1.55;color:#94a3b8;background:#1e293b;border:1px solid #334155;border-radius:12px;padding:12px 14px;margin-bottom:14px}
   .note b{color:#fbbf24}
   #map{height:62vh;min-height:380px;width:100%;border-radius:16px;border:1px solid #334155;z-index:1}
-  .statusbar{display:flex;align-items:center;gap:8px;font-size:13px;margin:12px 0 8px;color:#cbd5e1}
+  .statusbar{display:flex;align-items:center;gap:8px;font-size:13px;margin:12px 0 8px;color:#cbd5e1;cursor:pointer}
   .dot{width:10px;height:10px;border-radius:50%;background:#64748b;flex:none}
   .dot.on{background:#22c55e;box-shadow:0 0 0 4px rgba(34,197,94,.25)}
   .dot.mid{background:#f59e0b}
@@ -129,7 +129,13 @@
 <script>
 (function(){
 "use strict";
-var MQTT_URL = "wss://broker.emqx.io:8084/mqtt";
+var BROKERS = [
+  {url:"wss://broker.emqx.io:8084/mqtt", name:"EMQX"},
+  {url:"wss://mqtt.eclipseprojects.io:443/mqtt", name:"Eclipse"},
+  {url:"wss://broker.hivemq.com:8884/mqtt", name:"HiveMQ"},
+  {url:"wss://test.mosquitto.org:8081/mqtt", name:"Mosquitto"}
+];
+var brokerIdx = 0, brokerTimer = null;
 var TOPIC = "asaka/";
 var PUB_EVERY = 10000, STALE_MS = 90000, REMOVE_MS = 600000;
 var PALETTE = ["#0d9488","#2563eb","#db2777","#ea580c","#7c3aed","#0891b2","#65a30d","#dc2626"];
@@ -227,18 +233,43 @@ function setConn(on, text){
   $("conn-text").textContent = text;
 }
 function connectMQTT(){
-  if(client || typeof mqtt === "undefined"){ if(!client) setConn(false, "MQTT library wala ma-load — i-refresh ang page."); return; }
-  setConn(false, "Nagkonek sa relay…");
+  if(typeof mqtt === "undefined"){ setConn(false, "MQTT library wala ma-load — i-refresh ang page."); return; }
+  if(client) return;
+  tryBroker();
+}
+function tryBroker(){
+  if(brokerIdx >= BROKERS.length){
+    setConn(false, "Wala makakonek sa bisan unsang relay. I-check ang internet (o suwayi og mobile data imbes WiFi), dayon i-tap dinhi para mo-retry.");
+    return;
+  }
+  var b = BROKERS[brokerIdx];
+  setConn(false, "Nagkonek sa relay " + b.name + " (" + (brokerIdx+1) + "/" + BROKERS.length + ")…");
+  var settled = false, watchdog = null;
+  function failover(){
+    if(settled) return; settled = true;
+    if(watchdog) clearTimeout(watchdog);
+    try{ client.end(true); }catch(e){}
+    client = null;
+    brokerIdx++;
+    brokerTimer = setTimeout(tryBroker, 1200);
+  }
   try{
-    client = mqtt.connect(MQTT_URL, {clientId:"asaka-"+memberId+"-"+Math.random().toString(36).slice(2,7), clean:true, reconnectPeriod:3000, connectTimeout:10000});
-  }catch(e){ setConn(false, "Dili makakonek. I-refresh ang page."); return; }
+    client = mqtt.connect(b.url, {clientId:"asaka-"+memberId+"-"+Math.random().toString(36).slice(2,7), clean:true, reconnectPeriod:0, connectTimeout:8000});
+  }catch(e){ failover(); return; }
+  watchdog = setTimeout(function(){ if(!settled) failover(); }, 10000);
   client.on("connect", function(){
-    connected=true; setConn(true, "Connected — live na ang mapa 🟢");
+    settled = true;
+    if(watchdog) clearTimeout(watchdog);
+    connected = true;
+    setConn(true, "Connected (" + b.name + ") — live na ang mapa 🟢");
     client.subscribe(TOPIC+circleCode+"/#", {qos:1}, function(){});
   });
-  client.on("reconnect", function(){ connected=false; setConn(false, "Nag-reconnect…"); });
-  client.on("offline", function(){ connected=false; setConn(false, "Offline — naghulat og internet…"); });
-  client.on("error", function(){ connected=false; setConn(false, "Connection error — nag-retry…"); });
+  client.on("error", function(){ if(!connected) failover(); else setConn(false, "Connection error — nag-retry…"); });
+  client.on("close", function(){
+    if(connected){ connected=false; setConn(false, "Nawala ang koneksyon — nag-reconnect…"); brokerTimer=setTimeout(tryBroker, 2000); }
+    else failover();
+  });
+  client.on("offline", function(){ if(connected){ connected=false; setConn(false, "Offline — naghulat og internet…"); } });
   client.on("message", function(topic, payload){
     var parts = topic.split("/");
     var id = parts[2]; if(!id) return;
@@ -334,6 +365,14 @@ $("btn-share").addEventListener("click", function(){
 });
 $("btn-fit").addEventListener("click", fitMap);
 $("btn-leave").addEventListener("click", showHome);
+
+/* ---------- tap status to retry ---------- */
+document.querySelector(".statusbar").addEventListener("click", function(){
+  if(connected) return;
+  if(brokerTimer) clearTimeout(brokerTimer);
+  try{ if(client) client.end(true); }catch(e){}
+  client = null; connected = false; brokerIdx = 0; tryBroker();
+});
 
 /* ---------- boot ---------- */
 if(circleCode){
